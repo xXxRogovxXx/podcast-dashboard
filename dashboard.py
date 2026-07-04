@@ -355,10 +355,13 @@ def get_episode_position(episode_data, all_data, metric):
     }
 
 def filter_by_period(df, period):
-    """Фильтрует данные по периоду ОТНОСИТЕЛЬНО МАКСИМАЛЬНОЙ ДАТЫ В ЭТИХ ДАННЫХ"""
+    """
+    Фильтрует данные по периоду.
+    max_date берется ИЗ ПЕРЕДАННОГО df (конкретного выпуска), а не из глобальных данных!
+    """
     if df.empty:
         return df
-    # Берем максимум ИМЕННО в этих данных (конкретного выпуска)
+    # ✅ Берем максимум ИМЕННО в этих данных (конкретного выпуска)
     max_date = df['Дата прослушивания'].max()
     if period == "1 день":
         return df[df['Дата прослушивания'] >= max_date - pd.Timedelta(days=1)]
@@ -1013,7 +1016,7 @@ if page == "📊 Общая аналитика":
 
 
 # ============================================
-# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА
+# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА (С ИСПРАВЛЕННЫМ ФИЛЬТРОМ)
 # ============================================
 elif page == "📋 Анализ выпуска":
     st.title("📋 Детальный анализ выпуска")
@@ -1033,11 +1036,14 @@ elif page == "📋 Анализ выпуска":
     selected_short = st.selectbox("🎯 Выберите выпуск:", short_names)
     selected_episode = episode_names[selected_short]
     
+    # ========== ПРАВИЛЬНАЯ ФИЛЬТРАЦИЯ ==========
+    # 1. Берем данные ТОЛЬКО по выбранному выпуску
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
     
     if all_data.empty:
         st.warning(f"⚠️ Нет данных для выпуска '{selected_short}'")
     else:
+        # 2. Применяем фильтр по периоду (max_date считается для этого выпуска)
         if period != "Всё время":
             episode_data = filter_by_period(all_data, period)
         else:
@@ -1046,6 +1052,7 @@ elif page == "📋 Анализ выпуска":
         if episode_data.empty:
             st.warning(f"⚠️ Нет данных для выпуска '{selected_short}' в выбранном периоде")
         else:
+            # ========== МЕТРИКИ ==========
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("🎬 Старты", f"{episode_data['Старты'].sum():,}")
             col2.metric("🎧 Стримы", f"{episode_data['Стримы'].sum():,}")
@@ -1053,6 +1060,7 @@ elif page == "📋 Анализ выпуска":
             col3.metric("📈 Конверсия", f"{conv:.1f}%")
             col4.metric("⭐ RSI", f"{episode_data['RSI'].mean():.1f}")
             
+            # ========== ИНФОРМАЦИЯ ==========
             with st.expander("ℹ️ Информация о выпуске", expanded=True):
                 info = df_ref[df_ref['Выпуск'] == selected_episode].iloc[0]
                 col1, col2, col3 = st.columns(3)
@@ -1069,8 +1077,10 @@ elif page == "📋 Анализ выпуска":
             
             st.markdown("---")
             
+            # ========== СРАВНЕНИЕ СО СРЕДНИМ ==========
             st.subheader("📊 Сравнение со средними показателями")
             
+            # Данные для сравнения ТОЛЬКО за выбранный период
             compare_data = df_merged.copy()
             if period != "Всё время":
                 compare_data = filter_by_period(compare_data, period)
@@ -1088,6 +1098,7 @@ elif page == "📋 Анализ выпуска":
                 })
             st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
             
+            # ========== ДИНАМИКА ==========
             st.subheader("📈 Динамика прослушиваний")
             daily_data = episode_data.groupby('Дата прослушивания').agg({
                 'Старты': 'sum',
