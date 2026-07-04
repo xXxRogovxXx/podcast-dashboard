@@ -201,6 +201,39 @@ st.markdown("""
         background: linear-gradient(135deg, #f093fb, #4facfe);
         border-radius: 10px;
     }
+    
+    /* Стили для карточек информации о выпуске */
+    .info-card {
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 15px;
+        padding: 1.2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        margin-bottom: 0.5rem;
+    }
+    
+    .info-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(245, 87, 108, 0.15);
+        border-color: rgba(245, 87, 108, 0.2);
+    }
+    
+    .info-card-label {
+        color: rgba(255,255,255,0.6);
+        font-size: 0.8rem;
+        letter-spacing: 1px;
+        margin-bottom: 0.3rem;
+        text-transform: uppercase;
+    }
+    
+    .info-card-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -733,7 +766,7 @@ elif page == "📋 Анализ выпуска":
     
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
     
-    # НОВЫЙ СПОСОБ: находим фактическую первую дату прослушивания в данных
+    # Находим фактическую первую дату прослушивания в данных
     release_date = df_total[df_total['Выпуск'] == selected_episode]['Дата прослушивания'].min()
     
     if all_data.empty:
@@ -760,27 +793,98 @@ elif page == "📋 Анализ выпуска":
         if episode_data.empty:
             st.warning(f"⚠️ Нет данных для выпуска '{selected_short}' в выбранном периоде")
         else:
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("🎬 Старты", f"{episode_data['Старты'].sum():,}")
-            col2.metric("🎧 Стримы", f"{episode_data['Стримы'].sum():,}")
-            conv = (episode_data['Стримы'].sum() / episode_data['Старты'].sum() * 100) if episode_data['Старты'].sum() > 0 else 0
-            col3.metric("📈 Конверсия", f"{conv:.1f}%")
-            col4.metric("⭐ RSI", f"{episode_data['RSI'].mean():.1f}")
+            # Метрики в виде карточек
+            total_starts_ep = episode_data['Старты'].sum()
+            total_streams_ep = episode_data['Стримы'].sum()
+            conv_ep = (total_streams_ep / total_starts_ep * 100) if total_starts_ep > 0 else 0
+            rsi_ep = episode_data['RSI'].mean()
             
-            with st.expander("ℹ️ Информация о выпуске", expanded=True):
-                info = df_ref[df_ref['Выпуск'] == selected_episode].iloc[0]
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.write(f"**Формат:** {info['Формат']}")
-                    st.write(f"**Жанр:** {info['Жанр']}")
-                with col2:
-                    st.write(f"**Категория:** {info['Категория']}")
-                    st.write(f"**Длительность:** {info['Длительность']}")
-                with col3:
-                    st.write(f"**Первая дата в данных (релиз):** {release_date.date()}")
-                    days_active = (episode_data['Дата прослушивания'].max() - episode_data['Дата прослушивания'].min()).days
-                    st.write(f"**Дней в выборке:** {days_active + 1}")
-                    st.write(f"**Период:** {episode_data['Дата прослушивания'].min().date()} — {episode_data['Дата прослушивания'].max().date()}")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-icon">🎬</div>
+                    <div class="metric-value">{total_starts_ep:,}</div>
+                    <div class="metric-label">Всего стартов</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-icon">🎧</div>
+                    <div class="metric-value">{total_streams_ep:,}</div>
+                    <div class="metric-label">Всего стримов</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-icon">📈</div>
+                    <div class="metric-value">{conv_ep:.1f}%</div>
+                    <div class="metric-label">Конверсия</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-icon">⭐</div>
+                    <div class="metric-value">{rsi_ep:.1f}</div>
+                    <div class="metric-label">Средний RSI</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Карточки с информацией о выпуске
+            st.markdown("---")
+            st.markdown('<div class="section-title">ℹ️ Информация о выпуске</div>', unsafe_allow_html=True)
+            
+            info = df_ref[df_ref['Выпуск'] == selected_episode].iloc[0]
+            days_active = (episode_data['Дата прослушивания'].max() - episode_data['Дата прослушивания'].min()).days
+            
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="info-card">
+                    <div class="info-card-label">📂 Формат</div>
+                    <div class="info-card-value">{info['Формат']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="info-card">
+                    <div class="info-card-label">🎭 Жанр</div>
+                    <div class="info-card-value">{info['Жанр']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="info-card">
+                    <div class="info-card-label">📅 Первая дата</div>
+                    <div class="info-card-value">{release_date.date()}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown(f"""
+                <div class="info-card">
+                    <div class="info-card-label">📆 Дней в выборке</div>
+                    <div class="info-card-value">{days_active + 1}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col5:
+                st.markdown(f"""
+                <div class="info-card">
+                    <div class="info-card-label">⏱️ Длительность</div>
+                    <div class="info-card-value">{info['Длительность']}</div>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.markdown("---")
             
@@ -840,7 +944,7 @@ elif page == "📋 Анализ выпуска":
                 fillcolor='rgba(245, 87, 108, 0.15)'
             ))
             
-            # ВЕРТИКАЛЬНАЯ ЛИНИЯ РЕЛИЗА (add_shape)
+            # ВЕРТИКАЛЬНАЯ ЛИНИЯ РЕЛИЗА
             fig.add_shape(
                 type="line",
                 x0=release_date,
@@ -893,12 +997,10 @@ else:
     with col1:
         ep1_short = st.selectbox("📌 Выпуск №1:", short_names, key="ep1")
         ep1 = episode_names[ep1_short]
-        # НОВЫЙ СПОСОБ: фактическая первая дата прослушивания
         release_date1 = df_total[df_total['Выпуск'] == ep1]['Дата прослушивания'].min()
     with col2:
         ep2_short = st.selectbox("📌 Выпуск №2:", short_names, key="ep2")
         ep2 = episode_names[ep2_short]
-        # НОВЫЙ СПОСОБ: фактическая первая дата прослушивания
         release_date2 = df_total[df_total['Выпуск'] == ep2]['Дата прослушивания'].min()
     
     if ep1 == ep2:
@@ -946,109 +1048,204 @@ else:
         if data1.empty or data2.empty:
             st.warning("⚠️ Нет данных для выбранных выпусков в этом периоде")
         else:
-            st.subheader("📊 Сравнительная таблица")
-            conv1 = (data1['Стримы'].sum() / data1['Старты'].sum() * 100) if data1['Старты'].sum() > 0 else 0
-            conv2 = (data2['Стримы'].sum() / data2['Старты'].sum() * 100) if data2['Старты'].sum() > 0 else 0
+            # Карточки с метриками для двух выпусков
+            total_starts1 = data1['Старты'].sum()
+            total_streams1 = data1['Стримы'].sum()
+            conv1 = (total_streams1 / total_starts1 * 100) if total_starts1 > 0 else 0
+            rsi1 = data1['RSI'].mean()
             
-            comp_df = pd.DataFrame({
-                'Метрика': ['Старты', 'Стримы', 'Конверсия (%)', 'RSI'],
-                ep1_short: [
-                    data1['Старты'].sum(),
-                    data1['Стримы'].sum(),
-                    f"{conv1:.1f}%",
-                    f"{data1['RSI'].mean():.1f}"
-                ],
-                ep2_short: [
-                    data2['Старты'].sum(),
-                    data2['Стримы'].sum(),
-                    f"{conv2:.1f}%",
-                    f"{data2['RSI'].mean():.1f}"
-                ]
-            })
-            st.dataframe(comp_df, use_container_width=True)
+            total_starts2 = data2['Старты'].sum()
+            total_streams2 = data2['Стримы'].sum()
+            conv2 = (total_streams2 / total_starts2 * 100) if total_starts2 > 0 else 0
+            rsi2 = data2['RSI'].mean()
             
-            st.subheader("📈 Сравнение динамики")
-            daily1 = data1.groupby('Дата прослушивания').agg({'Старты': 'sum', 'Стримы': 'sum'}).reset_index()
-            daily2 = data2.groupby('Дата прослушивания').agg({'Старты': 'sum', 'Стримы': 'sum'}).reset_index()
+            st.markdown('<div class="section-title">📊 Сравнение метрик</div>', unsafe_allow_html=True)
             
-            fig = make_subplots(specs=[[{"secondary_y": True}]])
-            fig.add_trace(go.Scatter(
-                x=daily1['Дата прослушивания'],
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"""
+                <div style="background: rgba(79, 172, 254, 0.1); border: 1px solid rgba(79, 172, 254, 0.3); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem;">
+                    <h3 style="color: #4facfe; text-align: center; margin-bottom: 1rem;">{ep1_short}</h3>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                subcol1, subcol2, subcol3, subcol4 = st.columns(4)
+                with subcol1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">🎬</div>
+                        <div class="metric-value">{total_starts1:,}</div>
+                        <div class="metric-label">Старты</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with subcol2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">🎧</div>
+                        <div class="metric-value">{total_streams1:,}</div>
+                        <div class="metric-label">Стримы</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with subcol3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">📈</div>
+                        <div class="metric-value">{conv1:.1f}%</div>
+                        <div class="metric-label">Конверсия</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with subcol4:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">⭐</div>
+                        <div class="metric-value">{rsi1:.1f}</div>
+                        <div class="metric-label">RSI</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div style="background: rgba(245, 87, 108, 0.1); border: 1px solid rgba(245, 87, 108, 0.3); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem;">
+                    <h3 style="color: #f5576c; text-align: center; margin-bottom: 1rem;">{ep2_short}</h3>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                subcol1, subcol2, subcol3, subcol4 = st.columns(4)
+                with subcol1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">🎬</div>
+                        <div class="metric-value">{total_starts2:,}</div>
+                        <div class="metric-label">Старты</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with subcol2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">🎧</div>
+                        <div class="metric-value">{total_streams2:,}</div>
+                        <div class="metric-label">Стримы</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with subcol3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">📈</div>
+                        <div class="metric-value">{conv2:.1f}%</div>
+                        <div class="metric-label">Конверсия</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with subcol4:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-icon">⭐</div>
+                        <div class="metric-value">{rsi2:.1f}</div>
+                        <div class="metric-label">RSI</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Графики по дням от релиза
+            st.markdown('<div class="section-title">📈 Динамика по дням от релиза</div>', unsafe_allow_html=True)
+            
+            # Преобразуем даты в дни от релиза
+            data1_copy = data1.copy()
+            data2_copy = data2.copy()
+            
+            data1_copy['День от релиза'] = (data1_copy['Дата прослушивания'] - release_date1).dt.days + 1
+            data2_copy['День от релиза'] = (data2_copy['Дата прослушивания'] - release_date2).dt.days + 1
+            
+            daily1 = data1_copy.groupby('День от релиза').agg({
+                'Старты': 'sum',
+                'Стримы': 'sum'
+            }).reset_index()
+            
+            daily2 = data2_copy.groupby('День от релиза').agg({
+                'Старты': 'sum',
+                'Стримы': 'sum'
+            }).reset_index()
+            
+            # График стартов
+            st.markdown('<div class="chart-subtitle-starts">🎬 Сравнение стартов по дням</div>', unsafe_allow_html=True)
+            
+            fig_starts = go.Figure()
+            fig_starts.add_trace(go.Scatter(
+                x=daily1['День от релиза'],
                 y=daily1['Старты'],
-                name=f'{ep1_short} (Старты)',
-                line=dict(color='#4facfe', width=2)
+                name=f'{ep1_short}',
+                line=dict(color='#4facfe', width=3),
+                mode='lines+markers',
+                marker=dict(size=8, color='white', line=dict(color='#4facfe', width=2)),
+                fill='tozeroy',
+                fillcolor='rgba(79, 172, 254, 0.1)'
             ))
-            fig.add_trace(go.Scatter(
-                x=daily2['Дата прослушивания'],
+            fig_starts.add_trace(go.Scatter(
+                x=daily2['День от релиза'],
                 y=daily2['Старты'],
-                name=f'{ep2_short} (Старты)',
-                line=dict(color='#f5576c', width=2, dash='dash')
+                name=f'{ep2_short}',
+                line=dict(color='#f5576c', width=3),
+                mode='lines+markers',
+                marker=dict(size=8, color='white', line=dict(color='#f5576c', width=2)),
+                fill='tozeroy',
+                fillcolor='rgba(245, 87, 108, 0.1)'
             ))
-            fig.add_trace(go.Scatter(
-                x=daily1['Дата прослушивания'],
-                y=daily1['Стримы'],
-                name=f'{ep1_short} (Стримы)',
-                line=dict(color='#43e97b', width=2)
-            ), secondary_y=True)
-            fig.add_trace(go.Scatter(
-                x=daily2['Дата прослушивания'],
-                y=daily2['Стримы'],
-                name=f'{ep2_short} (Стримы)',
-                line=dict(color='#f093fb', width=2, dash='dash')
-            ), secondary_y=True)
             
-            # ВЕРТИКАЛЬНЫЕ ЛИНИИ РЕЛИЗОВ (add_shape)
-            fig.add_shape(
-                type="line",
-                x0=release_date1,
-                y0=0,
-                x1=release_date1,
-                y1=1,
-                yref="paper",
-                line=dict(color="#4facfe", width=2, dash="dash")
-            )
-            fig.add_annotation(
-                x=release_date1,
-                y=0.98,
-                yref="paper",
-                text=f"📅 Релиз {ep1_short}",
-                showarrow=False,
-                font=dict(color="#4facfe", size=10),
-                textangle=-90
-            )
-            
-            fig.add_shape(
-                type="line",
-                x0=release_date2,
-                y0=0,
-                x1=release_date2,
-                y1=1,
-                yref="paper",
-                line=dict(color="#f5576c", width=2, dash="dash")
-            )
-            fig.add_annotation(
-                x=release_date2,
-                y=0.95,
-                yref="paper",
-                text=f"📅 Релиз {ep2_short}",
-                showarrow=False,
-                font=dict(color="#f5576c", size=10),
-                textangle=-90
-            )
-            
-            fig.update_layout(
+            fig_starts.update_layout(
                 template='plotly_dark',
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                height=450,
+                height=400,
                 hovermode='x unified',
-                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white'))
+                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')),
+                xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+                yaxis=dict(title='Старты', titlefont=dict(color='#4facfe', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)')
             )
-            st.plotly_chart(fig, use_container_width=True)
             
-            st.subheader("🏆 Итоговый вердикт")
-            rsi1 = data1['RSI'].mean()
-            rsi2 = data2['RSI'].mean()
+            st.plotly_chart(fig_starts, use_container_width=True)
+            
+            # График стримов
+            st.markdown('<div class="chart-subtitle-streams">🎧 Сравнение стримов по дням</div>', unsafe_allow_html=True)
+            
+            fig_streams = go.Figure()
+            fig_streams.add_trace(go.Scatter(
+                x=daily1['День от релиза'],
+                y=daily1['Стримы'],
+                name=f'{ep1_short}',
+                line=dict(color='#43e97b', width=3),
+                mode='lines+markers',
+                marker=dict(size=8, color='white', line=dict(color='#43e97b', width=2)),
+                fill='tozeroy',
+                fillcolor='rgba(67, 233, 123, 0.1)'
+            ))
+            fig_streams.add_trace(go.Scatter(
+                x=daily2['День от релиза'],
+                y=daily2['Стримы'],
+                name=f'{ep2_short}',
+                line=dict(color='#f093fb', width=3),
+                mode='lines+markers',
+                marker=dict(size=8, color='white', line=dict(color='#f093fb', width=2)),
+                fill='tozeroy',
+                fillcolor='rgba(240, 147, 251, 0.1)'
+            ))
+            
+            fig_streams.update_layout(
+                template='plotly_dark',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                height=400,
+                hovermode='x unified',
+                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')),
+                xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+                yaxis=dict(title='Стримы', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)')
+            )
+            
+            st.plotly_chart(fig_streams, use_container_width=True)
+            
+            # Итоговый вердикт
+            st.markdown("---")
+            st.markdown('<div class="section-title">🏆 Итоговый вердикт</div>', unsafe_allow_html=True)
             
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
