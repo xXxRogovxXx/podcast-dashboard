@@ -303,7 +303,7 @@ page = st.sidebar.radio(
 )
 
 # ============================================
-# СТРАНИЦА 1: ОБЩАЯ АНАЛИТИКА (ТОЧНО КАК В ОРИГИНАЛЕ)
+# СТРАНИЦА 1: ОБЩАЯ АНАЛИТИКА
 # ============================================
 if page == "📊 Общая аналитика":
     with st.sidebar:
@@ -732,7 +732,9 @@ elif page == "📋 Анализ выпуска":
     selected_episode = episode_names[selected_short]
     
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
-    release_date = df_ref[df_ref['Выпуск'] == selected_episode]['Дата релиза'].iloc[0]
+    
+    # НОВЫЙ СПОСОБ: находим фактическую первую дату прослушивания в данных
+    release_date = df_total[df_total['Выпуск'] == selected_episode]['Дата прослушивания'].min()
     
     if all_data.empty:
         st.warning(f"⚠️ Нет данных для выпуска '{selected_short}'")
@@ -775,7 +777,7 @@ elif page == "📋 Анализ выпуска":
                     st.write(f"**Категория:** {info['Категория']}")
                     st.write(f"**Длительность:** {info['Длительность']}")
                 with col3:
-                    st.write(f"**Дата релиза:** {info['Дата релиза'].date()}")
+                    st.write(f"**Первая дата в данных (релиз):** {release_date.date()}")
                     days_active = (episode_data['Дата прослушивания'].max() - episode_data['Дата прослушивания'].min()).days
                     st.write(f"**Дней в выборке:** {days_active + 1}")
                     st.write(f"**Период:** {episode_data['Дата прослушивания'].min().date()} — {episode_data['Дата прослушивания'].max().date()}")
@@ -838,7 +840,7 @@ elif page == "📋 Анализ выпуска":
                 fillcolor='rgba(245, 87, 108, 0.15)'
             ))
             
-            # ✅ ВЕРТИКАЛЬНАЯ ЛИНИЯ РЕЛИЗА (add_shape)
+            # ВЕРТИКАЛЬНАЯ ЛИНИЯ РЕЛИЗА (add_shape)
             fig.add_shape(
                 type="line",
                 x0=release_date,
@@ -891,11 +893,13 @@ else:
     with col1:
         ep1_short = st.selectbox("📌 Выпуск №1:", short_names, key="ep1")
         ep1 = episode_names[ep1_short]
-        release_date1 = df_ref[df_ref['Выпуск'] == ep1]['Дата релиза'].iloc[0]
+        # НОВЫЙ СПОСОБ: фактическая первая дата прослушивания
+        release_date1 = df_total[df_total['Выпуск'] == ep1]['Дата прослушивания'].min()
     with col2:
         ep2_short = st.selectbox("📌 Выпуск №2:", short_names, key="ep2")
         ep2 = episode_names[ep2_short]
-        release_date2 = df_ref[df_ref['Выпуск'] == ep2]['Дата релиза'].iloc[0]
+        # НОВЫЙ СПОСОБ: фактическая первая дата прослушивания
+        release_date2 = df_total[df_total['Выпуск'] == ep2]['Дата прослушивания'].min()
     
     if ep1 == ep2:
         st.warning("⚠️ Выберите два разных выпуска для сравнения!")
@@ -993,7 +997,7 @@ else:
                 line=dict(color='#f093fb', width=2, dash='dash')
             ), secondary_y=True)
             
-            # ✅ ВЕРТИКАЛЬНЫЕ ЛИНИИ РЕЛИЗОВ (add_shape)
+            # ВЕРТИКАЛЬНЫЕ ЛИНИИ РЕЛИЗОВ (add_shape)
             fig.add_shape(
                 type="line",
                 x0=release_date1,
