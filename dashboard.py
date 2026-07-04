@@ -355,8 +355,10 @@ def get_episode_position(episode_data, all_data, metric):
     }
 
 def filter_by_period(df, period):
+    """Фильтрует данные по периоду ОТНОСИТЕЛЬНО МАКСИМАЛЬНОЙ ДАТЫ В ЭТИХ ДАННЫХ"""
     if df.empty:
         return df
+    # Берем максимум ИМЕННО в этих данных (конкретного выпуска)
     max_date = df['Дата прослушивания'].max()
     if period == "1 день":
         return df[df['Дата прослушивания'] >= max_date - pd.Timedelta(days=1)]
