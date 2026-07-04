@@ -354,24 +354,6 @@ def get_episode_position(episode_data, all_data, metric):
         'diff_percent': ((episode_value - mean_value) / mean_value * 100)
     }
 
-def filter_by_period(df, period):
-    """
-    Фильтрует данные по периоду.
-    max_date берется ИЗ ПЕРЕДАННОГО df (конкретного выпуска), а не из глобальных данных!
-    """
-    if df.empty:
-        return df
-    # ✅ Берем максимум ИМЕННО в этих данных (конкретного выпуска)
-    max_date = df['Дата прослушивания'].max()
-    if period == "1 день":
-        return df[df['Дата прослушивания'] >= max_date - pd.Timedelta(days=1)]
-    elif period == "1 неделя":
-        return df[df['Дата прослушивания'] >= max_date - pd.Timedelta(days=7)]
-    elif period == "1 месяц":
-        return df[df['Дата прослушивания'] >= max_date - pd.Timedelta(days=30)]
-    else:
-        return df
-
 # ============================================
 # ЗАГОЛОВОК
 # ============================================
@@ -1016,7 +998,7 @@ if page == "📊 Общая аналитика":
 
 
 # ============================================
-# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА (С ИСПРАВЛЕННЫМ ФИЛЬТРОМ)
+# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА (ПЕРВЫЕ N ДНЕЙ С РЕЛИЗА)
 # ============================================
 elif page == "📋 Анализ выпуска":
     st.title("📋 Детальный анализ выпуска")
@@ -1036,17 +1018,33 @@ elif page == "📋 Анализ выпуска":
     selected_short = st.selectbox("🎯 Выберите выпуск:", short_names)
     selected_episode = episode_names[selected_short]
     
-    # ========== ПРАВИЛЬНАЯ ФИЛЬТРАЦИЯ ==========
-    # 1. Берем данные ТОЛЬКО по выбранному выпуску
+    # ========== ФИЛЬТРАЦИЯ: ПЕРВЫЕ N ДНЕЙ С РЕЛИЗА ==========
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
+    release_date = df_ref[df_ref['Выпуск'] == selected_episode]['Дата релиза'].iloc[0]
     
     if all_data.empty:
         st.warning(f"⚠️ Нет данных для выпуска '{selected_short}'")
     else:
-        # 2. Применяем фильтр по периоду (max_date считается для этого выпуска)
-        if period != "Всё время":
-            episode_data = filter_by_period(all_data, period)
-        else:
+        # Применяем фильтр: от даты релиза + N дней
+        if period == "1 день":
+            # Только день релиза
+            episode_data = all_data[
+                (all_data['Дата прослушивания'] >= release_date) &
+                (all_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=0))
+            ]
+        elif period == "1 неделя":
+            # Первые 7 дней с релиза (день релиза + 6 дней)
+            episode_data = all_data[
+                (all_data['Дата прослушивания'] >= release_date) &
+                (all_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=6))
+            ]
+        elif period == "1 месяц":
+            # Первые 30 дней с релиза (день релиза + 29 дней)
+            episode_data = all_data[
+                (all_data['Дата прослушивания'] >= release_date) &
+                (all_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=29))
+            ]
+        else:  # "Всё время"
             episode_data = all_data
         
         if episode_data.empty:
@@ -1073,17 +1071,32 @@ elif page == "📋 Анализ выпуска":
                 with col3:
                     st.write(f"**Дата релиза:** {info['Дата релиза'].date()}")
                     days_active = (episode_data['Дата прослушивания'].max() - episode_data['Дата прослушивания'].min()).days
-                    st.write(f"**Дней в эфире:** {days_active}")
+                    st.write(f"**Дней в выборке:** {days_active + 1}")
+                    st.write(f"**Период:** {episode_data['Дата прослушивания'].min().date()} — {episode_data['Дата прослушивания'].max().date()}")
             
             st.markdown("---")
             
             # ========== СРАВНЕНИЕ СО СРЕДНИМ ==========
             st.subheader("📊 Сравнение со средними показателями")
             
-            # Данные для сравнения ТОЛЬКО за выбранный период
+            # Данные для сравнения за тот же период (первые N дней с релиза)
             compare_data = df_merged.copy()
-            if period != "Всё время":
-                compare_data = filter_by_period(compare_data, period)
+            if period == "1 день":
+                compare_data = compare_data[
+                    (compare_data['Дата прослушивания'] >= release_date) &
+                    (compare_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=0))
+                ]
+            elif period == "1 неделя":
+                compare_data = compare_data[
+                    (compare_data['Дата прослушивания'] >= release_date) &
+                    (compare_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=6))
+                ]
+            elif period == "1 месяц":
+                compare_data = compare_data[
+                    (compare_data['Дата прослушивания'] >= release_date) &
+                    (compare_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=29))
+                ]
+            # "Всё время" — без изменений
             
             metrics = ['Старты', 'Стримы', 'RSI']
             comparison_data = []
@@ -1122,6 +1135,16 @@ elif page == "📋 Анализ выпуска":
                 fill='tozeroy',
                 fillcolor='rgba(245, 87, 108, 0.15)'
             ))
+            
+            # Добавляем вертикальную линию релиза
+            fig.add_vline(
+                x=release_date,
+                line_dash="dash",
+                line_color="#f093fb",
+                annotation_text="📅 Релиз",
+                annotation_position="top left"
+            )
+            
             fig.update_layout(
                 template='plotly_dark',
                 plot_bgcolor='rgba(0,0,0,0)',
@@ -1155,21 +1178,54 @@ else:
     with col1:
         ep1_short = st.selectbox("📌 Выпуск №1:", short_names, key="ep1")
         ep1 = episode_names[ep1_short]
+        release_date1 = df_ref[df_ref['Выпуск'] == ep1]['Дата релиза'].iloc[0]
     with col2:
         ep2_short = st.selectbox("📌 Выпуск №2:", short_names, key="ep2")
         ep2 = episode_names[ep2_short]
+        release_date2 = df_ref[df_ref['Выпуск'] == ep2]['Дата релиза'].iloc[0]
     
     if ep1 == ep2:
         st.warning("⚠️ Выберите два разных выпуска для сравнения!")
     else:
         all_data = df_merged.copy()
-        if period != "Всё время":
-            filtered = filter_by_period(all_data, period)
-        else:
-            filtered = all_data
         
-        data1 = filtered[filtered['Выпуск'] == ep1]
-        data2 = filtered[filtered['Выпуск'] == ep2]
+        # Применяем фильтр по периоду (первые N дней с релиза для КАЖДОГО выпуска)
+        if period == "1 день":
+            data1 = all_data[
+                (all_data['Выпуск'] == ep1) &
+                (all_data['Дата прослушивания'] >= release_date1) &
+                (all_data['Дата прослушивания'] <= release_date1 + pd.Timedelta(days=0))
+            ]
+            data2 = all_data[
+                (all_data['Выпуск'] == ep2) &
+                (all_data['Дата прослушивания'] >= release_date2) &
+                (all_data['Дата прослушивания'] <= release_date2 + pd.Timedelta(days=0))
+            ]
+        elif period == "1 неделя":
+            data1 = all_data[
+                (all_data['Выпуск'] == ep1) &
+                (all_data['Дата прослушивания'] >= release_date1) &
+                (all_data['Дата прослушивания'] <= release_date1 + pd.Timedelta(days=6))
+            ]
+            data2 = all_data[
+                (all_data['Выпуск'] == ep2) &
+                (all_data['Дата прослушивания'] >= release_date2) &
+                (all_data['Дата прослушивания'] <= release_date2 + pd.Timedelta(days=6))
+            ]
+        elif period == "1 месяц":
+            data1 = all_data[
+                (all_data['Выпуск'] == ep1) &
+                (all_data['Дата прослушивания'] >= release_date1) &
+                (all_data['Дата прослушивания'] <= release_date1 + pd.Timedelta(days=29))
+            ]
+            data2 = all_data[
+                (all_data['Выпуск'] == ep2) &
+                (all_data['Дата прослушивания'] >= release_date2) &
+                (all_data['Дата прослушивания'] <= release_date2 + pd.Timedelta(days=29))
+            ]
+        else:  # "Всё время"
+            data1 = all_data[all_data['Выпуск'] == ep1]
+            data2 = all_data[all_data['Выпуск'] == ep2]
         
         if data1.empty or data2.empty:
             st.warning("⚠️ Нет данных для выбранных выпусков в этом периоде")
@@ -1224,6 +1280,23 @@ else:
                 name=f'{ep2_short} (Стримы)',
                 line=dict(color='#f093fb', width=2, dash='dash')
             ), secondary_y=True)
+            
+            # Добавляем вертикальные линии релизов
+            fig.add_vline(
+                x=release_date1,
+                line_dash="dash",
+                line_color="#4facfe",
+                annotation_text=f"📅 Релиз {ep1_short}",
+                annotation_position="top left"
+            )
+            fig.add_vline(
+                x=release_date2,
+                line_dash="dash",
+                line_color="#f5576c",
+                annotation_text=f"📅 Релиз {ep2_short}",
+                annotation_position="top right"
+            )
+            
             fig.update_layout(
                 template='plotly_dark',
                 plot_bgcolor='rgba(0,0,0,0)',
