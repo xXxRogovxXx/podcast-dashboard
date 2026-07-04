@@ -8,79 +8,92 @@ from plotly.subplots import make_subplots
 # НАСТРОЙКА СТРАНИЦЫ
 # ============================================
 st.set_page_config(
-    page_title="🎙️ Подкаст Аналитика",
+    page_title="🎙️ Подкаст Аналитика Pro",
     page_icon="🎙️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# Кастомные стили CSS
 st.markdown("""
 <style>
+    /* Общие стили */
     .stApp {
         background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
+    
+    /* Заголовок */
     .main-title {
-        font-size: 2.8rem;
+        font-size: 3.2rem;
         font-weight: 800;
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #4facfe 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        padding: 1rem 0;
         text-align: center;
-        padding: 0.5rem 0;
+        letter-spacing: -1px;
+        text-shadow: 0 0 40px rgba(245, 87, 108, 0.3);
     }
+    
     .sub-title {
         text-align: center;
-        color: rgba(255,255,255,0.5);
-        font-size: 0.9rem;
-        margin-bottom: 1.5rem;
-        letter-spacing: 2px;
+        color: rgba(255,255,255,0.6);
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        letter-spacing: 3px;
+        font-weight: 300;
     }
-    .css-1d391kg {
-        background: rgba(10, 8, 30, 0.95) !important;
-    }
-    .stSelectbox label, .stDateInput label, .stMarkdown, .stCaption {
-        color: rgba(255,255,255,0.8) !important;
-    }
+    
+    /* Метрики */
     .metric-card {
         background: rgba(255,255,255,0.05);
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 15px;
-        padding: 1.2rem;
+        padding: 1.5rem;
         text-align: center;
         transition: all 0.3s ease;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
+    
     .metric-card:hover {
-        transform: translateY(-3px);
+        transform: translateY(-5px);
+        box-shadow: 0 12px 48px rgba(245, 87, 108, 0.2);
         border-color: rgba(245, 87, 108, 0.3);
     }
+    
     .metric-value {
-        font-size: 2.2rem;
+        font-size: 2.5rem;
         font-weight: 700;
         background: linear-gradient(135deg, #f093fb 0%, #4facfe 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
+    
     .metric-label {
-        color: rgba(255,255,255,0.6);
-        font-size: 0.85rem;
+        color: rgba(255,255,255,0.7);
+        font-size: 0.9rem;
         margin-top: 0.3rem;
-    }
-    .metric-icon {
-        font-size: 1.8rem;
-        margin-bottom: 0.3rem;
-    }
-    .section-title {
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: white;
-        padding: 0.8rem 0;
-        border-bottom: 2px solid rgba(245, 87, 108, 0.3);
-        margin-bottom: 1.2rem;
         letter-spacing: 1px;
     }
+    
+    .metric-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: white;
+        padding: 1rem 0;
+        border-bottom: 2px solid rgba(245, 87, 108, 0.3);
+        margin-bottom: 1.5rem;
+        letter-spacing: 1px;
+    }
+    
     .footer {
         text-align: center;
         color: rgba(255,255,255,0.3);
@@ -89,11 +102,105 @@ st.markdown("""
         letter-spacing: 2px;
         border-top: 1px solid rgba(255,255,255,0.05);
     }
+    
+    /* Стили для подзаголовков графиков */
+    .chart-subtitle-starts {
+        color: #4facfe !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        padding: 0.5rem 0 !important;
+        margin-bottom: 0.5rem !important;
+        text-shadow: 0 0 20px rgba(79, 172, 254, 0.4) !important;
+        letter-spacing: 1px !important;
+    }
+    
+    .chart-subtitle-streams {
+        color: #f5576c !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        padding: 0.5rem 0 !important;
+        margin-bottom: 0.5rem !important;
+        text-shadow: 0 0 20px rgba(245, 87, 108, 0.4) !important;
+        letter-spacing: 1px !important;
+    }
+    
+    .chart-subtitle-conversion {
+        color: #43e97b !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        padding: 0.5rem 0 !important;
+        margin-bottom: 0.5rem !important;
+        text-shadow: 0 0 20px rgba(67, 233, 123, 0.4) !important;
+        letter-spacing: 1px !important;
+    }
+    
+    /* Информационный блок */
+    .info-block {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .info-title {
+        color: white;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.8rem;
+        letter-spacing: 1px;
+    }
+    
+    /* Стили для боковой панели */
+    .css-1d391kg {
+        background: rgba(10, 8, 30, 0.98) !important;
+        backdrop-filter: blur(20px);
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .css-1d391kg .stSelectbox label,
+    .css-1d391kg .stDateInput label,
+    .css-1d391kg .stMarkdown,
+    .css-1d391kg .stCaption,
+    .css-1d391kg .stText {
+        color: rgba(255,255,255,0.9) !important;
+    }
+    
+    .css-1d391kg .stSelectbox > div > div {
+        background: rgba(255,255,255,0.08);
+        border-radius: 10px;
+        color: white !important;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .css-1d391kg .stDateInput > div > div {
+        background: rgba(255,255,255,0.08);
+        border-radius: 10px;
+        color: white !important;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .css-1d391kg .stDateInput input {
+        color: white !important;
+    }
+    
+    .css-1d391kg .stSelectbox select {
+        color: white !important;
+    }
+    
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.05);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #f093fb, #4facfe);
+        border-radius: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
-
-st.markdown('<div class="main-title">🎙️ Подкаст Аналитика</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">ПРЕМИУМ ДАШБОРД • АНАЛИТИКА ПРОСЛУШИВАНИЙ • ТРЕНДЫ</div>', unsafe_allow_html=True)
 
 # ============================================
 # ЗАГРУЗКА ДАННЫХ
@@ -187,6 +294,12 @@ def filter_by_period(df, period):
         return df
 
 # ============================================
+# ЗАГОЛОВОК
+# ============================================
+st.markdown('<div class="main-title">🎙️ Подкаст Аналитика</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">ПРЕМИУМ ДАШБОРД • АНАЛИТИКА ПРОСЛУШИВАНИЙ • ТРЕНДЫ</div>', unsafe_allow_html=True)
+
+# ============================================
 # НАВИГАЦИЯ
 # ============================================
 page = st.sidebar.radio(
@@ -196,7 +309,7 @@ page = st.sidebar.radio(
 )
 
 # ============================================
-# СТРАНИЦА 1: ОБЩАЯ АНАЛИТИКА (ПОЛНАЯ ВЕРСИЯ)
+# СТРАНИЦА 1: ОБЩАЯ АНАЛИТИКА (ВОССТАНОВЛЕНА)
 # ============================================
 if page == "📊 Общая аналитика":
     st.title("📊 Общая аналитика")
@@ -236,7 +349,7 @@ if page == "📊 Общая аналитика":
     if selected_genre != 'Все':
         filtered_data = filtered_data[filtered_data['Жанр'] == selected_genre]
     
-    # МЕТРИКИ
+    # ========== МЕТРИКИ ==========
     total_starts = filtered_data['Старты'].sum()
     total_streams = filtered_data['Стримы'].sum()
     conversion = (total_streams / total_starts * 100) if total_starts > 0 else 0
@@ -294,27 +407,29 @@ if page == "📊 Общая аналитика":
     
     # ========== ИНФОРМАЦИОННЫЙ БЛОК ==========
     st.markdown("""
-    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem;">
-        <div style="color: white; font-size: 1.1rem; font-weight: 600; margin-bottom: 0.8rem;">📖 Что означают метрики</div>
+    <div class="info-block">
+        <div class="info-title">📖 Что означают метрики</div>
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
             <div>
                 <div style="color: #4facfe; font-weight: 700; font-size: 1rem;">🎬 Старты</div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Количество запусков выпуска</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Количество запусков выпуска — базовый показатель популярности</div>
             </div>
             <div>
                 <div style="color: #f5576c; font-weight: 700; font-size: 1rem;">🎧 Стримы</div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Прослушивания > 2 минут</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Прослушивания длительностью более 2 минут — показатель вовлеченности</div>
             </div>
             <div>
                 <div style="color: #43e97b; font-weight: 700; font-size: 1rem;">📈 Конверсия</div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Стримы / Старты × 100%</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Доля стартов, перешедших в стримы. <strong style="color: #43e97b;">Формула:</strong> Стримы / Старты × 100%</div>
             </div>
-            <div style="grid-column: span 3; margin-top: 0.3rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                <div style="color: #f093fb; font-weight: 700; font-size: 1rem;">⭐ RSI (Reach Success Index)</div>
+            <div style="grid-column: span 3; margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="color: #f093fb; font-weight: 700; font-size: 1rem;">⭐ RSI (Reach Success Index) — Индекс успешности выпуска</div>
                 <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">
-                    Комплексный показатель: <strong style="color: #f5576c;">Стримы</strong> × 
-                    (<strong style="color: #43e97b;">Конверсия</strong> + 1) × 
-                    <strong style="color: #4facfe;">Старты<sup>0.1</sup></strong>
+                    Комплексный показатель, учитывающий:<br>
+                    <strong style="color: #f5576c;">Стримы (E)</strong> — вовлеченность слушателей × 
+                    <strong style="color: #43e97b;">Конверсия (F+1)</strong> — качество контента × 
+                    <strong style="color: #4facfe;">Старты<sup>0.1</sup> (D)</strong> — охват аудитории<br>
+                    <span style="color: rgba(255,255,255,0.4); font-size: 0.8rem;">📌 Формула: RSI = E × (F + 1) × D<sup>0.1</sup>, где E — стримы, F — конверсия (0-1), D — старты</span>
                 </div>
             </div>
         </div>
@@ -330,9 +445,9 @@ if page == "📊 Общая аналитика":
     }).reset_index()
     daily_stats['Конверсия'] = (daily_stats['Стримы'] / daily_stats['Старты'] * 100).fillna(0)
     
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig1 = make_subplots(specs=[[{"secondary_y": True}]])
     
-    fig.add_trace(go.Scatter(
+    fig1.add_trace(go.Scatter(
         x=daily_stats['Дата прослушивания'],
         y=daily_stats['Старты'],
         name='Старты',
@@ -342,7 +457,7 @@ if page == "📊 Общая аналитика":
         hovertemplate='<b>%{x}</b><br>Старты: %{y}<extra></extra>'
     ))
     
-    fig.add_trace(go.Scatter(
+    fig1.add_trace(go.Scatter(
         x=daily_stats['Дата прослушивания'],
         y=daily_stats['Стримы'],
         name='Стримы',
@@ -352,7 +467,7 @@ if page == "📊 Общая аналитика":
         hovertemplate='<b>%{x}</b><br>Стримы: %{y}<extra></extra>'
     ))
     
-    fig.add_trace(go.Scatter(
+    fig1.add_trace(go.Scatter(
         x=daily_stats['Дата прослушивания'],
         y=daily_stats['Конверсия'],
         name='Конверсия (%)',
@@ -360,48 +475,61 @@ if page == "📊 Общая аналитика":
         hovertemplate='<b>%{x}</b><br>Конверсия: %{y:.1f}%<extra></extra>'
     ), secondary_y=True)
     
-    fig.update_layout(
+    fig1.update_layout(
         template='plotly_dark',
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         height=450,
         hovermode='x unified',
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')),
-        xaxis=dict(title='Дата', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)'),
-        yaxis=dict(title='Количество', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)'),
-        yaxis2=dict(title='Конверсия (%)', titlefont=dict(color='#43e97b'), tickfont=dict(color='#43e97b'), overlaying='y', side='right')
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)),
+        xaxis=dict(title='Дата', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+        yaxis=dict(title='Количество', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+        yaxis2=dict(title='Конверсия (%)', titlefont=dict(color='#43e97b', size=13), tickfont=dict(color='#43e97b', size=11), overlaying='y', side='right', showgrid=False)
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig1, use_container_width=True)
     
     # ========== ТОП ВЫПУСКОВ ПО RSI ==========
     st.markdown('<div class="section-title">🏆 Топ выпусков по RSI</div>', unsafe_allow_html=True)
     
+    episode_rsi = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Старты': 'sum',
+        'Стримы': 'sum',
+        'RSI': 'mean'
+    }).reset_index()
+    episode_rsi['Конверсия'] = (episode_rsi['Стримы'] / episode_rsi['Старты'] * 100).fillna(0)
+    episode_rsi = episode_rsi.sort_values('RSI', ascending=False)
+    top_rsi = episode_rsi.head(10)
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        top_episodes = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
-            'Старты': 'sum',
-            'Стримы': 'sum',
-            'RSI': 'mean'
-        }).reset_index().sort_values('RSI', ascending=False).head(10)
+        display_names = top_rsi['Короткое название'].tolist()
         
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(
-            x=top_episodes['Короткое название'],
-            y=top_episodes['RSI'],
-            marker=dict(color=top_episodes['RSI'], colorscale='Viridis', colorbar=dict(title='RSI')),
-            text=top_episodes['RSI'].round(1),
+            x=display_names,
+            y=top_rsi['RSI'],
+            name='RSI',
+            marker=dict(
+                color=top_rsi['RSI'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title='RSI', titlefont=dict(color='white'), tickfont=dict(color='white'))
+            ),
+            text=top_rsi['RSI'].round(1),
             textposition='outside',
-            textfont=dict(color='white'),
-            hovertemplate='<b>%{x}</b><br>RSI: %{y:.1f}<extra></extra>'
+            textfont=dict(color='white', size=11),
+            hovertemplate='<b>%{x}</b><br>RSI: %{y:.1f}<br>Старты: %{customdata[0]:,}<br>Стримы: %{customdata[1]:,}<br>Конверсия: %{customdata[2]:.1f}%<extra></extra>',
+            customdata=top_rsi[['Старты', 'Стримы', 'Конверсия']].values
         ))
+        
         fig2.update_layout(
             template='plotly_dark',
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
             height=450,
             xaxis=dict(tickangle=-15, tickfont=dict(color='white', size=10), gridcolor='rgba(255,255,255,0.05)'),
-            yaxis=dict(title='RSI', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)')
+            yaxis=dict(title='RSI', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)')
         )
         st.plotly_chart(fig2, use_container_width=True)
     
@@ -411,8 +539,8 @@ if page == "📊 Общая аналитика":
             <h4 style="color: white; margin-bottom: 0.8rem;">⭐ Топ RSI</h4>
         """, unsafe_allow_html=True)
         
-        if len(top_episodes) > 0:
-            for i, (idx, row) in enumerate(top_episodes.head(5).iterrows()):
+        if len(top_rsi) > 0:
+            for i, (idx, row) in enumerate(top_rsi.head(5).iterrows()):
                 medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]
                 name = row['Короткое название'][:25] + '...' if len(row['Короткое название']) > 25 else row['Короткое название']
                 st.markdown(f"""
@@ -425,13 +553,13 @@ if page == "📊 Общая аналитика":
     
     st.markdown("---")
     
-    # ========== АНАЛИТИКА ПО ФОРМАТАМ И ЖАНРАМ ==========
+    # ========== ДЕТАЛЬНАЯ АНАЛИТИКА ==========
     st.markdown('<div class="section-title">🎭 Детальная аналитика</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("#### 📊 По форматам")
+        st.markdown('<div class="chart-subtitle-starts">📊 По форматам</div>', unsafe_allow_html=True)
         format_stats = filtered_data.groupby('Формат').agg({'Старты': 'sum'}).reset_index()
         colors = ['#4facfe', '#f5576c', '#f093fb', '#43e97b', '#fa709a']
         
@@ -448,21 +576,21 @@ if page == "📊 Общая аналитика":
             template='plotly_dark',
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            height=320,
+            height=300,
             legend=dict(font=dict(color='white'), orientation='h', yanchor='bottom', y=-0.1)
         )
         st.plotly_chart(fig3, use_container_width=True)
     
     with col2:
-        st.markdown("#### 🎭 По жанрам")
-        genre_stats = filtered_data.groupby('Жанр').agg({'Старты': 'sum'}).reset_index().sort_values('Старты', ascending=False).head(6)
-        colors = ['#43e97b', '#4facfe', '#f093fb', '#f5576c', '#fa709a', '#f6d365']
+        st.markdown('<div class="chart-subtitle-streams">🎧 По стримам</div>', unsafe_allow_html=True)
+        format_stats_streams = filtered_data.groupby('Формат').agg({'Стримы': 'sum'}).reset_index()
+        colors = ['#4facfe', '#f5576c', '#f093fb', '#43e97b', '#fa709a']
         
         fig4 = go.Figure(data=[go.Pie(
-            labels=genre_stats['Жанр'],
-            values=genre_stats['Старты'],
+            labels=format_stats_streams['Формат'],
+            values=format_stats_streams['Стримы'],
             hole=0.4,
-            marker=dict(colors=colors[:len(genre_stats)], line=dict(color='white', width=2)),
+            marker=dict(colors=colors[:len(format_stats_streams)], line=dict(color='white', width=2)),
             textfont=dict(color='white', size=12),
             hoverinfo='label+percent',
             textinfo='label+percent'
@@ -471,41 +599,102 @@ if page == "📊 Общая аналитика":
             template='plotly_dark',
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            height=320,
+            height=300,
             legend=dict(font=dict(color='white'), orientation='h', yanchor='bottom', y=-0.1)
         )
         st.plotly_chart(fig4, use_container_width=True)
     
     with col3:
-        st.markdown("#### 📅 По дням недели")
-        filtered_data['День недели'] = filtered_data['Дата прослушивания'].dt.day_name()
-        weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        weekday_labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+        st.markdown('<div class="chart-subtitle-conversion">📈 По конверсии</div>', unsafe_allow_html=True)
+        format_stats_conv = filtered_data.groupby('Формат').agg({
+            'Старты': 'sum',
+            'Стримы': 'sum'
+        }).reset_index()
+        format_stats_conv['Конверсия'] = (format_stats_conv['Стримы'] / format_stats_conv['Старты'] * 100).fillna(0)
+        colors = ['#4facfe', '#f5576c', '#f093fb', '#43e97b', '#fa709a']
         
-        weekday_stats = filtered_data.groupby('День недели').agg({'Старты': 'sum'}).reindex(weekday_order).reset_index()
-        weekday_stats['День'] = weekday_labels
-        
-        fig5 = go.Figure(data=[go.Bar(
-            x=weekday_stats['День'],
-            y=weekday_stats['Старты'],
-            marker=dict(color=['#4facfe', '#43e97b', '#f093fb', '#f5576c', '#fa709a', '#f6d365', '#a8edea'], line=dict(color='white', width=1)),
-            text=weekday_stats['Старты'],
-            textposition='outside',
-            textfont=dict(color='white')
+        fig5 = go.Figure(data=[go.Pie(
+            labels=format_stats_conv['Формат'],
+            values=format_stats_conv['Конверсия'],
+            hole=0.4,
+            marker=dict(colors=colors[:len(format_stats_conv)], line=dict(color='white', width=2)),
+            textfont=dict(color='white', size=12),
+            hoverinfo='label+percent',
+            textinfo='label+percent'
         )])
         fig5.update_layout(
             template='plotly_dark',
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            height=320,
-            xaxis=dict(title='День недели', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)'),
-            yaxis=dict(title='Старты', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)'),
-            showlegend=False
+            height=300,
+            legend=dict(font=dict(color='white'), orientation='h', yanchor='bottom', y=-0.1)
         )
         st.plotly_chart(fig5, use_container_width=True)
     
-    # ========== КУМУЛЯТИВНЫЙ РОСТ ==========
     st.markdown("---")
+    
+    # ========== АКТИВНОСТЬ ПО ДНЯМ НЕДЕЛИ ==========
+    st.markdown('<div class="section-title">📅 Активность по дням недели</div>', unsafe_allow_html=True)
+    
+    filtered_data['День недели'] = filtered_data['Дата прослушивания'].dt.day_name()
+    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    weekday_labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+    
+    weekday_stats = filtered_data.groupby('День недели').agg({
+        'Старты': 'sum',
+        'Стримы': 'sum'
+    }).reindex(weekday_order).reset_index()
+    weekday_stats['День'] = weekday_labels
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown('<div class="chart-subtitle-starts">📊 По стартам</div>', unsafe_allow_html=True)
+        fig6 = go.Figure(data=[go.Bar(
+            x=weekday_stats['День'],
+            y=weekday_stats['Старты'],
+            marker=dict(color=['#4facfe', '#43e97b', '#f093fb', '#f5576c', '#fa709a', '#f6d365', '#a8edea'], line=dict(color='white', width=1)),
+            text=weekday_stats['Старты'],
+            textposition='outside',
+            textfont=dict(color='white', size=11),
+            hovertemplate='<b>%{x}</b><br>Старты: %{y:,}<extra></extra>'
+        )])
+        fig6.update_layout(
+            template='plotly_dark',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=300,
+            xaxis=dict(title='День недели', titlefont=dict(color='white', size=12), tickfont=dict(color='white', size=11), showgrid=False),
+            yaxis=dict(title='Старты', titlefont=dict(color='#4facfe', size=12), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+            showlegend=False
+        )
+        st.plotly_chart(fig6, use_container_width=True)
+    
+    with col2:
+        st.markdown('<div class="chart-subtitle-streams">🎧 По стримам</div>', unsafe_allow_html=True)
+        fig7 = go.Figure(data=[go.Bar(
+            x=weekday_stats['День'],
+            y=weekday_stats['Стримы'],
+            marker=dict(color=['#4facfe', '#43e97b', '#f093fb', '#f5576c', '#fa709a', '#f6d365', '#a8edea'], line=dict(color='white', width=1)),
+            text=weekday_stats['Стримы'],
+            textposition='outside',
+            textfont=dict(color='white', size=11),
+            hovertemplate='<b>%{x}</b><br>Стримы: %{y:,}<extra></extra>'
+        )])
+        fig7.update_layout(
+            template='plotly_dark',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=300,
+            xaxis=dict(title='День недели', titlefont=dict(color='white', size=12), tickfont=dict(color='white', size=11), showgrid=False),
+            yaxis=dict(title='Стримы', titlefont=dict(color='#f5576c', size=12), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+            showlegend=False
+        )
+        st.plotly_chart(fig7, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # ========== НАКОПЛЕННЫЙ РОСТ ==========
     st.markdown('<div class="section-title">📈 Накопленный рост</div>', unsafe_allow_html=True)
     
     cum_stats = filtered_data.groupby('Дата прослушивания').agg({
@@ -515,8 +704,8 @@ if page == "📊 Общая аналитика":
     cum_stats['Старты_нак'] = cum_stats['Старты'].cumsum()
     cum_stats['Стримы_нак'] = cum_stats['Стримы'].cumsum()
     
-    fig6 = go.Figure()
-    fig6.add_trace(go.Scatter(
+    fig8 = go.Figure()
+    fig8.add_trace(go.Scatter(
         x=cum_stats.index,
         y=cum_stats['Старты_нак'],
         name='Старты (накоп.)',
@@ -524,7 +713,7 @@ if page == "📊 Общая аналитика":
         fill='tozeroy',
         fillcolor='rgba(79, 172, 254, 0.15)'
     ))
-    fig6.add_trace(go.Scatter(
+    fig8.add_trace(go.Scatter(
         x=cum_stats.index,
         y=cum_stats['Стримы_нак'],
         name='Стримы (накоп.)',
@@ -532,17 +721,17 @@ if page == "📊 Общая аналитика":
         fill='tozeroy',
         fillcolor='rgba(245, 87, 108, 0.15)'
     ))
-    fig6.update_layout(
+    fig8.update_layout(
         template='plotly_dark',
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         height=350,
         hovermode='x unified',
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')),
-        xaxis=dict(title='Дата', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)'),
-        yaxis=dict(title='Накопленное количество', titlefont=dict(color='white'), tickfont=dict(color='white'), gridcolor='rgba(255,255,255,0.05)')
+        xaxis=dict(title='Дата', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'),
+        yaxis=dict(title='Накопленное количество', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)')
     )
-    st.plotly_chart(fig6, use_container_width=True)
+    st.plotly_chart(fig8, use_container_width=True)
     
     st.markdown("---")
     st.markdown("""
@@ -552,7 +741,7 @@ if page == "📊 Общая аналитика":
     """, unsafe_allow_html=True)
 
 # ============================================
-# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА (С ИСПРАВЛЕНИЕМ 1 ДНЯ)
+# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА
 # ============================================
 elif page == "📋 Анализ выпуска":
     st.title("📋 Детальный анализ выпуска")
@@ -572,13 +761,11 @@ elif page == "📋 Анализ выпуска":
     selected_short = st.selectbox("🎯 Выберите выпуск:", short_names)
     selected_episode = episode_names[selected_short]
     
-    # ИСПРАВЛЕНО: фильтруем данные по периоду корректно
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
     
     if all_data.empty:
         st.warning(f"⚠️ Нет данных для выпуска '{selected_short}'")
     else:
-        # Применяем фильтр по периоду ТОЛЬКО если есть данные
         if period != "Всё время":
             episode_data = filter_by_period(all_data, period)
         else:
@@ -587,7 +774,6 @@ elif page == "📋 Анализ выпуска":
         if episode_data.empty:
             st.warning(f"⚠️ Нет данных для выпуска '{selected_short}' в выбранном периоде")
         else:
-            # ========== МЕТРИКИ ==========
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("🎬 Старты", f"{episode_data['Старты'].sum():,}")
             col2.metric("🎧 Стримы", f"{episode_data['Стримы'].sum():,}")
@@ -595,7 +781,6 @@ elif page == "📋 Анализ выпуска":
             col3.metric("📈 Конверсия", f"{conv:.1f}%")
             col4.metric("⭐ RSI", f"{episode_data['RSI'].mean():.1f}")
             
-            # ========== ИНФОРМАЦИЯ ==========
             with st.expander("ℹ️ Информация о выпуске", expanded=True):
                 info = df_ref[df_ref['Выпуск'] == selected_episode].iloc[0]
                 col1, col2, col3 = st.columns(3)
@@ -612,10 +797,8 @@ elif page == "📋 Анализ выпуска":
             
             st.markdown("---")
             
-            # ========== СРАВНЕНИЕ СО СРЕДНИМ ==========
             st.subheader("📊 Сравнение со средними показателями")
             
-            # Данные для сравнения ТОЛЬКО за выбранный период
             compare_data = df_merged.copy()
             if period != "Всё время":
                 compare_data = filter_by_period(compare_data, period)
@@ -633,7 +816,6 @@ elif page == "📋 Анализ выпуска":
                 })
             st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
             
-            # ========== ДИНАМИКА ==========
             st.subheader("📈 Динамика прослушиваний")
             daily_data = episode_data.groupby('Дата прослушивания').agg({
                 'Старты': 'sum',
@@ -708,7 +890,6 @@ else:
         if data1.empty or data2.empty:
             st.warning("⚠️ Нет данных для выбранных выпусков в этом периоде")
         else:
-            # ========== СРАВНИТЕЛЬНАЯ ТАБЛИЦА ==========
             st.subheader("📊 Сравнительная таблица")
             conv1 = (data1['Стримы'].sum() / data1['Старты'].sum() * 100) if data1['Старты'].sum() > 0 else 0
             conv2 = (data2['Стримы'].sum() / data2['Старты'].sum() * 100) if data2['Старты'].sum() > 0 else 0
@@ -730,7 +911,6 @@ else:
             })
             st.dataframe(comp_df, use_container_width=True)
             
-            # ========== СОВМЕЩЕННЫЙ ГРАФИК ==========
             st.subheader("📈 Сравнение динамики")
             daily1 = data1.groupby('Дата прослушивания').agg({'Старты': 'sum', 'Стримы': 'sum'}).reset_index()
             daily2 = data2.groupby('Дата прослушивания').agg({'Старты': 'sum', 'Стримы': 'sum'}).reset_index()
@@ -770,7 +950,6 @@ else:
             )
             st.plotly_chart(fig, use_container_width=True)
             
-            # ========== ВЕРДИКТ ==========
             st.subheader("🏆 Итоговый вердикт")
             rsi1 = data1['RSI'].mean()
             rsi2 = data2['RSI'].mean()
