@@ -321,6 +321,22 @@ def get_episode_position(episode_data, all_data, metric):
     }
 
 # ============================================
+# ФОРМИРОВАНИЕ ХРОНОЛОГИЧЕСКОГО СПИСКА ВЫПУСКОВ
+# ============================================
+# Берём порядок из справочника (как в Excel)
+chronological_episodes = df_ref['Выпуск'].tolist()
+
+# Создаём словарь: короткое_название -> полное_название (с учётом порядка из справочника)
+episode_names_ordered = {}
+short_names_ordered = []
+
+for ep in chronological_episodes:
+    short = get_short_name(ep)
+    if short not in episode_names_ordered:
+        episode_names_ordered[short] = ep
+        short_names_ordered.append(short)
+
+# ============================================
 # ЗАГОЛОВОК
 # ============================================
 st.markdown('<div class="main-title">🎙️ Подкаст Аналитика</div>', unsafe_allow_html=True)
@@ -744,7 +760,7 @@ if page == "📊 Общая аналитика":
 
 
 # ============================================
-# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА (ПЕРВЫЕ N ДНЕЙ С РЕЛИЗА)
+# СТРАНИЦА 2: АНАЛИЗ ВЫПУСКА
 # ============================================
 elif page == "📋 Анализ выпуска":
     st.title("📋 Детальный анализ выпуска")
@@ -757,12 +773,9 @@ elif page == "📋 Анализ выпуска":
         index=3
     )
     
-    episodes = sorted(df_merged['Выпуск'].unique())
-    episode_names = {get_short_name(ep): ep for ep in episodes}
-    short_names = list(episode_names.keys())
-    
-    selected_short = st.selectbox("🎯 Выберите выпуск:", short_names)
-    selected_episode = episode_names[selected_short]
+    # Используем хронологический порядок из справочника
+    selected_short = st.selectbox("🎯 Выберите выпуск:", short_names_ordered)
+    selected_episode = episode_names_ordered[selected_short]
     
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
     
@@ -989,18 +1002,14 @@ else:
         index=3
     )
     
-    episodes = sorted(df_merged['Выпуск'].unique())
-    episode_names = {get_short_name(ep): ep for ep in episodes}
-    short_names = list(episode_names.keys())
-    
     col1, col2 = st.columns(2)
     with col1:
-        ep1_short = st.selectbox("📌 Выпуск №1:", short_names, key="ep1")
-        ep1 = episode_names[ep1_short]
+        ep1_short = st.selectbox("📌 Выпуск №1:", short_names_ordered, key="ep1")
+        ep1 = episode_names_ordered[ep1_short]
         release_date1 = df_total[df_total['Выпуск'] == ep1]['Дата прослушивания'].min()
     with col2:
-        ep2_short = st.selectbox("📌 Выпуск №2:", short_names, key="ep2")
-        ep2 = episode_names[ep2_short]
+        ep2_short = st.selectbox("📌 Выпуск №2:", short_names_ordered, key="ep2")
+        ep2 = episode_names_ordered[ep2_short]
         release_date2 = df_total[df_total['Выпуск'] == ep2]['Дата прослушивания'].min()
     
     if ep1 == ep2:
