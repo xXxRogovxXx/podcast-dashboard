@@ -1795,7 +1795,7 @@ else:
                 
                 # Сравнительная статистика
                 st.markdown("---")
-                st.markdown('<div style="font-size: 1.1rem; font-weight: 600; color: white; margin-bottom: 1rem;">📊 Сравнительная статистика</div>', unsafe_allow_html=True)
+                st.markdown('<div class="section-title">📊 Сравнительная статистика</div>', unsafe_allow_html=True)
                 
                 # Считаем метрики для сравнения
                 col1, col2, col3 = st.columns(3)
@@ -1807,12 +1807,22 @@ else:
                     
                     if days1_50 and days2_50:
                         faster = "1️⃣" if days1_50 < days2_50 else "2️⃣" if days2_50 < days1_50 else "🤝"
-                        st.metric(
-                            label=f"⏱️ Дней до 50% {faster}",
-                            value=f"{ep1_short}: {days1_50} дн. / {ep2_short}: {days2_50} дн."
-                        )
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #4facfe;">
+                            <strong style="color: #4facfe !important;">⏱️ Дней до 50% {faster}</strong><br>
+                            <span style="font-size: 1rem; color: rgba(255,255,255,0.9);">
+                                {ep1_short}: <strong style="color: #4facfe;">{days1_50} дн.</strong><br>
+                                {ep2_short}: <strong style="color: #f5576c;">{days2_50} дн.</strong>
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.metric(label="⏱️ Дней до 50%", value="—")
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #4facfe;">
+                            <strong style="color: #4facfe !important;">⏱️ Дней до 50%</strong><br>
+                            <span style="color: rgba(255,255,255,0.5);">—</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 with col2:
                     # Дней до 90%
@@ -1821,12 +1831,22 @@ else:
                     
                     if days1_90 and days2_90:
                         longer = "1️⃣" if days1_90 > days2_90 else "2️⃣" if days2_90 > days1_90 else "🤝"
-                        st.metric(
-                            label=f"⏱️ Дней до 90% {longer}",
-                            value=f"{ep1_short}: {days1_90} дн. / {ep2_short}: {days2_90} дн."
-                        )
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #43e97b;">
+                            <strong style="color: #43e97b !important;">⏱️ Дней до 90% {longer}</strong><br>
+                            <span style="font-size: 1rem; color: rgba(255,255,255,0.9);">
+                                {ep1_short}: <strong style="color: #4facfe;">{days1_90} дн.</strong><br>
+                                {ep2_short}: <strong style="color: #f5576c;">{days2_90} дн.</strong>
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.metric(label="⏱️ Дней до 90%", value="—")
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #43e97b;">
+                            <strong style="color: #43e97b !important;">⏱️ Дней до 90%</strong><br>
+                            <span style="color: rgba(255,255,255,0.5);">—</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 with col3:
                     # Скорость "взлета" (крутизна на первых 3 днях)
@@ -1834,94 +1854,79 @@ else:
                         slope1 = (life_curve1['Стримы_норм'].iloc[2] - life_curve1['Стримы_норм'].iloc[0]) / 2
                         slope2 = (life_curve2['Стримы_норм'].iloc[2] - life_curve2['Стримы_норм'].iloc[0]) / 2
                         faster_start = "1️⃣" if slope1 > slope2 else "2️⃣" if slope2 > slope1 else "🤝"
-                        st.metric(
-                            label=f"🚀 Скорость старта {faster_start}",
-                            value=f"{ep1_short}: {slope1:.1f}%/день / {ep2_short}: {slope2:.1f}%/день"
-                        )
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #f6d365;">
+                            <strong style="color: #f6d365 !important;">🚀 Скорость старта {faster_start}</strong><br>
+                            <span style="font-size: 1rem; color: rgba(255,255,255,0.9);">
+                                {ep1_short}: <strong style="color: #4facfe;">{slope1:.1f}%/день</strong><br>
+                                {ep2_short}: <strong style="color: #f5576c;">{slope2:.1f}%/день</strong>
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.metric(label="🚀 Скорость старта", value="—")
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #f6d365;">
+                            <strong style="color: #f6d365 !important;">🚀 Скорость старта</strong><br>
+                            <span style="color: rgba(255,255,255,0.5);">—</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 # Краткий вердикт по кривым жизни
                 st.markdown("---")
-                if days1_50 and days2_50 and days1_90 and days2_90:
-                    if days1_50 < days2_50 and days1_90 < days2_90:
-                        verdict = f"🏆 {ep1_short} быстрее набирает аудиторию, но и быстрее 'выдыхается'."
-                    elif days1_50 > days2_50 and days1_90 > days2_90:
-                        verdict = f"🏆 {ep2_short} быстрее набирает аудиторию, но и быстрее 'выдыхается'."
-                    elif days1_50 < days2_50 and days1_90 > days2_90:
-                        verdict = f"🌟 {ep1_short} взлетает быстрее, но живет дольше. Это идеальный сценарий!"
-                    elif days1_50 > days2_50 and days1_90 < days2_90:
-                        verdict = f"🌟 {ep2_short} взлетает быстрее, но живет дольше. Это идеальный сценарий!"
+                st.markdown('<div class="section-title">💡 Вывод</div>', unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="verdict-card">
+                        <strong>⭐ {ep1_short}</strong><br>
+                        <span>Скорость: {slope1:.1f}%/день</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="verdict-card">
+                        <strong>⭐ {ep2_short}</strong><br>
+                        <span>Скорость: {slope2:.1f}%/день</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    if days1_50 and days2_50 and days1_90 and days2_90:
+                        if days1_50 < days2_50 and days1_90 < days2_90:
+                            winner = ep1_short
+                            color = "#43e97b"
+                            detail = "быстрее набирает аудиторию, но и быстрее \"выдыхается\""
+                        elif days1_50 > days2_50 and days1_90 > days2_90:
+                            winner = ep2_short
+                            color = "#43e97b"
+                            detail = "быстрее набирает аудиторию, но и быстрее \"выдыхается\""
+                        elif days1_50 < days2_50 and days1_90 > days2_90:
+                            winner = ep1_short
+                            color = "#f6d365"
+                            detail = "взлетает быстрее, но живет дольше. Это идеальный сценарий!"
+                        elif days1_50 > days2_50 and days1_90 < days2_90:
+                            winner = ep2_short
+                            color = "#f6d365"
+                            detail = "взлетает быстрее, но живет дольше. Это идеальный сценарий!"
+                        else:
+                            winner = "Ничья"
+                            color = "#4facfe"
+                            detail = "у выпусков разные паттерны. Посмотрите на график выше"
+                        
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: {color};">
+                            <strong style="color: {color} !important;">🏆 Победитель</strong><br>
+                            <span style="color: {color} !important;">{winner}</span><br>
+                            <span>{detail}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        verdict = "📊 У выпусков разные паттерны. Посмотрите на график выше."
-                else:
-                    verdict = "📊 Недостаточно данных для сравнения."
-                
-                st.info(f"💡 **Вывод:** {verdict}")
-                
-            else:
-                st.warning("⚠️ Недостаточно данных для построения кривых жизни одного из выпусков.")
-            
-            # Итоговый вердикт
-            st.markdown("---")
-            
-            st.markdown('<div class="section-title">🏆 Итоговый вердикт</div>', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 1, 2])
-            
-            with col1:
-                st.markdown(f"""
-                <div class="verdict-card">
-                    <strong>⭐ RSI {ep1_short}</strong><br>
-                    <span>{rsi1:.1f}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown(f"""
-                <div class="verdict-card">
-                    <strong>⭐ RSI {ep2_short}</strong><br>
-                    <span>{rsi2:.1f}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                if rsi1 > rsi2 * 1.05:
-                    st.markdown(f"""
-                    <div class="verdict-card" style="border-color: #43e97b;">
-                        <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
-                        <span style="color: #43e97b !important;">{ep1_short}</span><br>
-                        <span>значительно лучше по RSI!</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                elif rsi1 > rsi2:
-                    st.markdown(f"""
-                    <div class="verdict-card" style="border-color: #4facfe;">
-                        <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
-                        <span style="color: #4facfe !important;">{ep1_short}</span><br>
-                        <span>лучше по RSI!</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                elif rsi2 > rsi1 * 1.05:
-                    st.markdown(f"""
-                    <div class="verdict-card" style="border-color: #43e97b;">
-                        <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
-                        <span style="color: #43e97b !important;">{ep2_short}</span><br>
-                        <span>значительно лучше по RSI!</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                elif rsi2 > rsi1:
-                    st.markdown(f"""
-                    <div class="verdict-card" style="border-color: #4facfe;">
-                        <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
-                        <span style="color: #4facfe !important;">{ep2_short}</span><br>
-                        <span>лучше по RSI!</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="verdict-card" style="border-color: #f6d365;">
-                        <strong style="color: #f6d365 !important;">🤝 Ничья</strong><br>
-                        <span>Выпуски примерно равны по RSI!</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #f6d365;">
+                            <strong style="color: #f6d365 !important;">📊</strong><br>
+                            <span>Недостаточно данных для сравнения</span>
+                        </div>
+                        """, unsafe_allow_html=True)
