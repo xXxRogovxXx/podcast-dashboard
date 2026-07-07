@@ -1930,3 +1930,65 @@ else:
                             <span>Недостаточно данных для сравнения</span>
                         </div>
                         """, unsafe_allow_html=True)
+                # Итоговый вердикт по RSI
+                st.markdown("---")
+                st.markdown('<div class="section-title">🏆 Итоговый вердикт по RSI</div>', unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="verdict-card">
+                        <strong>⭐ RSI {ep1_short}</strong><br>
+                        <span>{rsi1:.1f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="verdict-card">
+                        <strong>⭐ RSI {ep2_short}</strong><br>
+                        <span>{rsi2:.1f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    if rsi1 > rsi2 * 1.05:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #43e97b;">
+                            <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
+                            <span style="color: #43e97b !important;">{ep1_short}</span><br>
+                            <span>значительно лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif rsi1 > rsi2:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #4facfe;">
+                            <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
+                            <span style="color: #4facfe !important;">{ep1_short}</span><br>
+                            <span>лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif rsi2 > rsi1 * 1.05:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #43e97b;">
+                            <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
+                            <span style="color: #43e97b !important;">{ep2_short}</span><br>
+                            <span>значительно лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif rsi2 > rsi1:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #4facfe;">
+                            <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
+                            <span style="color: #4facfe !important;">{ep2_short}</span><br>
+                            <span>лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #f6d365;">
+                            <strong style="color: #f6d365 !important;">🤝 Ничья</strong><br>
+                            <span>Выпуски примерно равны по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
