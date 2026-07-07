@@ -1720,14 +1720,6 @@ else:
             life_curve1 = get_life_curve_for_period(ep1, df_merged, period_days=None)
             life_curve2 = get_life_curve_for_period(ep2, df_merged, period_days=None)
             
-            # Инициализируем переменные по умолчанию
-            slope1 = 0
-            slope2 = 0
-            days1_50 = None
-            days2_50 = None
-            days1_90 = None
-            days2_90 = None
-            
             if life_curve1 is not None and life_curve2 is not None and not life_curve1.empty and not life_curve2.empty:
                 # Строим сравнительный график
                 fig_compare_life = go.Figure()
@@ -1805,23 +1797,14 @@ else:
                 st.markdown("---")
                 st.markdown('<div class="section-title">📊 Сравнительная статистика</div>', unsafe_allow_html=True)
                 
-                # Считаем метрики
-                days1_50 = life_curve1[life_curve1['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve1['Стримы_норм'] >= 50).any() else None
-                days2_50 = life_curve2[life_curve2['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve2['Стримы_норм'] >= 50).any() else None
-                days1_90 = life_curve1[life_curve1['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve1['Стримы_норм'] >= 90).any() else None
-                days2_90 = life_curve2[life_curve2['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve2['Стримы_норм'] >= 90).any() else None
-                
-                # Скорость старта
-                if len(life_curve1) >= 3:
-                    slope1 = (life_curve1['Стримы_норм'].iloc[2] - life_curve1['Стримы_норм'].iloc[0]) / 2
-                if len(life_curve2) >= 3:
-                    slope2 = (life_curve2['Стримы_норм'].iloc[2] - life_curve2['Стримы_норм'].iloc[0]) / 2
-                
-                # Сравнительная статистика
+                # Считаем метрики для сравнения
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     # Дней до 50%
+                    days1_50 = life_curve1[life_curve1['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve1['Стримы_норм'] >= 50).any() else None
+                    days2_50 = life_curve2[life_curve2['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve2['Стримы_норм'] >= 50).any() else None
+                    
                     if days1_50 and days2_50:
                         faster = "1️⃣" if days1_50 < days2_50 else "2️⃣" if days2_50 < days1_50 else "🤝"
                         st.markdown(f"""
@@ -1843,6 +1826,9 @@ else:
                 
                 with col2:
                     # Дней до 90%
+                    days1_90 = life_curve1[life_curve1['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve1['Стримы_норм'] >= 90).any() else None
+                    days2_90 = life_curve2[life_curve2['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve2['Стримы_норм'] >= 90).any() else None
+                    
                     if days1_90 and days2_90:
                         longer = "1️⃣" if days1_90 > days2_90 else "2️⃣" if days2_90 > days1_90 else "🤝"
                         st.markdown(f"""
@@ -1865,6 +1851,8 @@ else:
                 with col3:
                     # Скорость "взлета" (крутизна на первых 3 днях)
                     if len(life_curve1) >= 3 and len(life_curve2) >= 3:
+                        slope1 = (life_curve1['Стримы_норм'].iloc[2] - life_curve1['Стримы_норм'].iloc[0]) / 2
+                        slope2 = (life_curve2['Стримы_норм'].iloc[2] - life_curve2['Стримы_норм'].iloc[0]) / 2
                         faster_start = "1️⃣" if slope1 > slope2 else "2️⃣" if slope2 > slope1 else "🤝"
                         st.markdown(f"""
                         <div class="verdict-card" style="border-color: #f6d365;">
@@ -1942,6 +1930,65 @@ else:
                             <span>Недостаточно данных для сравнения</span>
                         </div>
                         """, unsafe_allow_html=True)
-                        
-            else:
-                st.warning("⚠️ Недостаточно данных для построения кривых жизни для одного или обоих выпусков.")
+                # Итоговый вердикт по RSI
+                st.markdown("---")
+                st.markdown('<div class="section-title">🏆 Итоговый вердикт по RSI</div>', unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="verdict-card">
+                        <strong>⭐ RSI {ep1_short}</strong><br>
+                        <span>{rsi1:.1f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="verdict-card">
+                        <strong>⭐ RSI {ep2_short}</strong><br>
+                        <span>{rsi2:.1f}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    if rsi1 > rsi2 * 1.05:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #43e97b;">
+                            <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
+                            <span style="color: #43e97b !important;">{ep1_short}</span><br>
+                            <span>значительно лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif rsi1 > rsi2:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #4facfe;">
+                            <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
+                            <span style="color: #4facfe !important;">{ep1_short}</span><br>
+                            <span>лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif rsi2 > rsi1 * 1.05:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #43e97b;">
+                            <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
+                            <span style="color: #43e97b !important;">{ep2_short}</span><br>
+                            <span>значительно лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif rsi2 > rsi1:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #4facfe;">
+                            <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
+                            <span style="color: #4facfe !important;">{ep2_short}</span><br>
+                            <span>лучше по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="verdict-card" style="border-color: #f6d365;">
+                            <strong style="color: #f6d365 !important;">🤝 Ничья</strong><br>
+                            <span>Выпуски примерно равны по RSI!</span>
+                        </div>
+                        """, unsafe_allow_html=True)
