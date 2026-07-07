@@ -1845,9 +1845,9 @@ else:
                 st.markdown("---")
                 if days1_50 and days2_50 and days1_90 and days2_90:
                     if days1_50 < days2_50 and days1_90 < days2_90:
-                        verdict = f"🏆 {ep1_short} быстрее набирает аудиторию, но и быстрее "выдыхается"."
+                        verdict = f"🏆 {ep1_short} быстрее набирает аудиторию, но и быстрее 'выдыхается'."
                     elif days1_50 > days2_50 and days1_90 > days2_90:
-                        verdict = f"🏆 {ep2_short} быстрее набирает аудиторию, но и быстрее "выдыхается"."
+                        verdict = f"🏆 {ep2_short} быстрее набирает аудиторию, но и быстрее 'выдыхается'."
                     elif days1_50 < days2_50 and days1_90 > days2_90:
                         verdict = f"🌟 {ep1_short} взлетает быстрее, но живет дольше. Это идеальный сценарий!"
                     elif days1_50 > days2_50 and days1_90 < days2_90:
