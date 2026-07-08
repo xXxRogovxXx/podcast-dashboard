@@ -5,6 +5,8 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime
+import base64
+from io import BytesIO
 
 # ============================================
 # НАСТРОЙКА СТРАНИЦЫ
@@ -396,8 +398,163 @@ st.markdown("""
     div[data-testid="stExpander"] details summary svg {
         fill: #f093fb !important;
     }
+    
+    /* Стили для карточек Зала славы и Зоны риска */
+    .hall-of-fame {
+        background: linear-gradient(135deg, rgba(67, 233, 123, 0.1), rgba(67, 233, 123, 0.02));
+        border: 1px solid rgba(67, 233, 123, 0.3);
+        border-radius: 15px;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .hall-of-fame:hover {
+        transform: translateX(5px);
+        border-color: rgba(67, 233, 123, 0.6);
+        box-shadow: 0 0 30px rgba(67, 233, 123, 0.1);
+    }
+    
+    .danger-zone {
+        background: linear-gradient(135deg, rgba(245, 87, 108, 0.1), rgba(245, 87, 108, 0.02));
+        border: 1px solid rgba(245, 87, 108, 0.3);
+        border-radius: 15px;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .danger-zone:hover {
+        transform: translateX(5px);
+        border-color: rgba(245, 87, 108, 0.6);
+        box-shadow: 0 0 30px rgba(245, 87, 108, 0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# ============================================
+# ФУНКЦИЯ ДЛЯ ЭКСПОРТА В PDF
+# ============================================
+def get_pdf_download_link(df, filename="report.pdf"):
+    """Генерирует ссылку для скачивания отчета в PDF"""
+    try:
+        from weasyprint import HTML
+        import tempfile
+        import os
+        
+        # Создаем HTML-отчет
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Подкаст Аналитика - Отчет</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; background: white; }}
+                h1 {{ color: #f5576c; border-bottom: 2px solid #f5576c; padding-bottom: 10px; }}
+                h2 {{ color: #4facfe; margin-top: 30px; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                th {{ background: #4facfe; color: white; padding: 10px; text-align: left; }}
+                td {{ padding: 8px; border-bottom: 1px solid #ddd; }}
+                tr:hover {{ background: #f5f5f5; }}
+                .metric {{ display: inline-block; margin: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; }}
+                .metric-value {{ font-size: 2rem; font-weight: bold; color: #f5576c; }}
+                .metric-label {{ color: #666; }}
+                .footer {{ margin-top: 50px; text-align: center; color: #999; font-size: 0.8rem; border-top: 1px solid #ddd; padding-top: 20px; }}
+                .badge-good {{ color: #43e97b; font-weight: bold; }}
+                .badge-bad {{ color: #f5576c; font-weight: bold; }}
+            </style>
+        </head>
+        <body>
+            <h1>🎙️ Подкаст Аналитика - Отчет</h1>
+            <p><strong>Дата создания:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+            <p><strong>Период:</strong> {df['Дата прослушивания'].min().date()} — {df['Дата прослушивания'].max().date()}</p>
+            
+            <h2>📊 Общая статистика</h2>
+            <div class="metric">
+                <div class="metric-value">{df['Старты'].sum():,}</div>
+                <div class="metric-label">Всего стартов</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{df['Стримы'].sum():,}</div>
+                <div class="metric-label">Всего стримов</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{(df['Стримы'].sum() / df['Старты'].sum() * 100) if df['Старты'].sum() > 0 else 0:.1f}%</div>
+                <div class="metric-label">Конверсия</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{df['Средний_прослушивания'].mean():.1f}%</div>
+                <div class="metric-label">Средний % прослушивания</div>
+            </div>
+            
+            <h2>📈 Топ выпусков по популярности</h2>
+            <table>
+                <tr><th>#</th><th>Название</th><th>Старты</th><th>Стримы</th><th>Дослушиваемость</th></tr>
+                {''.join([f"<tr><td>{i+1}</td><td>{row['Короткое название']}</td><td>{row['Старты']:,}</td><td>{row['Стримы']:,}</td><td>{row['Дослушиваемость']:.1f}%</td></tr>" 
+                         for i, (_, row) in enumerate(df.groupby(['Выпуск', 'Короткое название']).agg({
+                             'Старты': 'sum', 
+                             'Стримы': 'sum',
+                             'Дослушиваемость': 'mean'
+                         }).reset_index().sort_values('Старты', ascending=False).head(10).iterrows())])}
+            </table>
+            
+            <h2>🏆 Зал славы (лучшая дослушиваемость)</h2>
+            <table>
+                <tr><th>#</th><th>Название</th><th>Дослушиваемость</th><th>Старты</th></tr>
+                {''.join([f"<tr><td>{i+1}</td><td>{row['Короткое название']}</td><td class='badge-good'>{row['Дослушиваемость']:.1f}%</td><td>{row['Старты']:,}</td></tr>" 
+                         for i, (_, row) in enumerate(df.groupby(['Выпуск', 'Короткое название']).agg({
+                             'Дослушиваемость': 'mean',
+                             'Старты': 'sum'
+                         }).reset_index().sort_values('Дослушиваемость', ascending=False).head(10).iterrows())])}
+            </table>
+            
+            <h2>⚠️ Зона риска (худшая дослушиваемость)</h2>
+            <table>
+                <tr><th>#</th><th>Название</th><th>Дослушиваемость</th><th>Старты</th></tr>
+                {''.join([f"<tr><td>{i+1}</td><td>{row['Короткое название']}</td><td class='badge-bad'>{row['Дослушиваемость']:.1f}%</td><td>{row['Старты']:,}</td></tr>" 
+                         for i, (_, row) in enumerate(df.groupby(['Выпуск', 'Короткое название']).agg({
+                             'Дослушиваемость': 'mean',
+                             'Старты': 'sum'
+                         }).reset_index().sort_values('Дослушиваемость', ascending=True).head(10).iterrows())])}
+            </table>
+            
+            <div class="footer">
+                🎙️ Подкаст Аналитика Pro • Сгенерировано автоматически
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Создаем PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as f:
+            f.write(html_content.encode('utf-8'))
+            html_path = f.name
+        
+        pdf_path = html_path.replace('.html', '.pdf')
+        HTML(html_path).write_pdf(pdf_path)
+        
+        # Читаем PDF
+        with open(pdf_path, 'rb') as f:
+            pdf_data = f.read()
+        
+        # Удаляем временные файлы
+        os.unlink(html_path)
+        os.unlink(pdf_path)
+        
+        # Создаем ссылку для скачивания
+        b64 = base64.b64encode(pdf_data).decode()
+        href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="display: inline-block; background: linear-gradient(135deg, #f5576c, #f093fb); color: white; padding: 10px 25px; border-radius: 8px; text-decoration: none; font-weight: bold;">📥 Скачать PDF-отчет</a>'
+        return href
+        
+    except ImportError:
+        # Если weasyprint не установлен, предлагаем CSV
+        csv = df.to_csv(index=False).encode('utf-8')
+        b64 = base64.b64encode(csv).decode()
+        href = f'<a href="data:file/csv;base64,{b64}" download="report.csv" style="display: inline-block; background: linear-gradient(135deg, #4facfe, #f093fb); color: white; padding: 10px 25px; border-radius: 8px; text-decoration: none; font-weight: bold;">📥 Скачать CSV (PDF требует установки weasyprint)</a>'
+        return href
+    except Exception as e:
+        return f"<span style='color: #f5576c;'>⚠️ Ошибка генерации отчета: {str(e)}</span>"
 
 # ============================================
 # ЗАГРУЗКА ДАННЫХ
@@ -633,6 +790,14 @@ if page == "📊 Общая аналитика":
         st.caption(f"**Записей:** {len(df_total):,}")
         st.caption(f"**Период:** {min_date} — {max_date}")
         st.caption(f"**Выпусков:** {len(df_ref):,}")
+        
+        st.markdown("---")
+        # Кнопка экспорта
+        st.markdown("### 📤 Экспорт отчета")
+        if st.button("🔄 Сгенерировать отчет", use_container_width=True):
+            with st.spinner("Генерация отчета..."):
+                download_link = get_pdf_download_link(filtered_data)
+                st.markdown(download_link, unsafe_allow_html=True)
 
     filtered_data = df_merged.copy()
 
@@ -804,6 +969,246 @@ if page == "📊 Общая аналитика":
 
     st.plotly_chart(fig1, use_container_width=True)
 
+    # ============================================
+    # ТЕПЛОВАЯ КАРТА: КАЧЕСТВО vs ПОПУЛЯРНОСТЬ
+    # ============================================
+    st.markdown("---")
+    st.markdown('<div class="section-title">🎯 Матрица качества и популярности</div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 1rem; font-style: italic;">
+        💡 Каждый пузырек — выпуск. 
+        <strong style="color: #4facfe;">Чем правее</strong> — тем популярнее (больше стартов). 
+        <strong style="color: #43e97b;">Чем выше</strong> — тем качественнее (лучше дослушиваемость).
+        <strong style="color: #f6d365;">Размер</strong> = средний % прослушивания.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    heatmap_data = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Старты': 'sum',
+        'Стримы': 'sum',
+        'Средний_прослушивания': 'mean',
+        'Дослушиваемость': 'mean',
+        'RSI': 'mean'
+    }).reset_index()
+    
+    # Фильтруем выпуски с хотя бы 10 стартами для релевантности
+    heatmap_data = heatmap_data[heatmap_data['Старты'] >= 10]
+    
+    if not heatmap_data.empty:
+        # Создаем scatter plot
+        fig_heatmap = go.Figure()
+        
+        # Добавляем точки
+        fig_heatmap.add_trace(go.Scatter(
+            x=heatmap_data['Старты'],
+            y=heatmap_data['Дослушиваемость'] * 100,  # Переводим в проценты для отображения
+            mode='markers+text',
+            text=heatmap_data['Короткое название'],
+            textposition='top center',
+            textfont=dict(color='white', size=9),
+            marker=dict(
+                size=heatmap_data['Средний_прослушивания'] * 30 + 10,  # Размер зависит от среднего %
+                color=heatmap_data['RSI'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(
+                    title='RSI',
+                    titlefont=dict(color='white'),
+                    tickfont=dict(color='white')
+                ),
+                line=dict(color='white', width=1),
+                sizemode='area',
+                sizeref=2.*max(heatmap_data['Средний_прослушивания'] * 30 + 10)/(40.**2),
+                sizemin=4
+            ),
+            hovertemplate='<b>%{text}</b><br>Старты: %{x:,.0f}<br>Дослушиваемость: %{y:.1f}%<br>Средний %: %{marker.size:.1f}%<br>RSI: %{marker.color:.1f}<extra></extra>'
+        ))
+        
+        # Добавляем линии-разделители для квадрантов
+        median_starts = heatmap_data['Старты'].median()
+        median_completion = heatmap_data['Дослушиваемость'].median() * 100
+        
+        fig_heatmap.add_hline(
+            y=median_completion, 
+            line_dash="dash", 
+            line_color="rgba(255,255,255,0.3)", 
+            line_width=1
+        )
+        fig_heatmap.add_vline(
+            x=median_starts, 
+            line_dash="dash", 
+            line_color="rgba(255,255,255,0.3)", 
+            line_width=1
+        )
+        
+        # Добавляем аннотации квадрантов
+        max_x = heatmap_data['Старты'].max()
+        max_y = heatmap_data['Дослушиваемость'].max() * 100
+        
+        fig_heatmap.add_annotation(
+            x=max_x * 0.85,
+            y=max_y * 0.85,
+            text="⭐ ХИТЫ",
+            showarrow=False,
+            font=dict(color='#43e97b', size=14, family='Arial Black'),
+            opacity=0.5
+        )
+        fig_heatmap.add_annotation(
+            x=max_x * 0.15,
+            y=max_y * 0.85,
+            text="💎 НИШЕВЫЕ",
+            showarrow=False,
+            font=dict(color='#4facfe', size=14, family='Arial Black'),
+            opacity=0.5
+        )
+        fig_heatmap.add_annotation(
+            x=max_x * 0.85,
+            y=max_y * 0.15,
+            text="📊 МАССОВЫЕ",
+            showarrow=False,
+            font=dict(color='#f6d365', size=14, family='Arial Black'),
+            opacity=0.5
+        )
+        fig_heatmap.add_annotation(
+            x=max_x * 0.15,
+            y=max_y * 0.15,
+            text="❌ ПРОВАЛЫ",
+            showarrow=False,
+            font=dict(color='#f5576c', size=14, family='Arial Black'),
+            opacity=0.5
+        )
+        
+        fig_heatmap.update_layout(
+            template='plotly_dark',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=550,
+            hovermode='closest',
+            xaxis=dict(
+                title='Старты (популярность)',
+                titlefont=dict(color='white', size=13),
+                tickfont=dict(color='white', size=11),
+                gridcolor='rgba(255,255,255,0.05)',
+                type='log'  # Логарифмическая шкала для лучшего распределения
+            ),
+            yaxis=dict(
+                title='Дослушиваемость % (качество)',
+                titlefont=dict(color='white', size=13),
+                tickfont=dict(color='white', size=11),
+                gridcolor='rgba(255,255,255,0.05)',
+                range=[0, 105]
+            ),
+            legend=dict(
+                orientation='h',
+                yanchor='bottom',
+                y=1.02,
+                xanchor='right',
+                x=1,
+                font=dict(color='white', size=12)
+            )
+        )
+        
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+    else:
+        st.info("ℹ️ Недостаточно данных для построения матрицы (нужно минимум 10 стартов на выпуск)")
+
+    # ============================================
+    # ЗАЛ СЛАВЫ И ЗОНА РИСКА
+    # ============================================
+    st.markdown("---")
+    st.markdown('<div class="section-title">🏆 Зал славы и ⚠️ Зона риска</div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 1rem; font-style: italic;">
+        💡 <strong style="color: #43e97b;">Зал славы</strong> — выпуски с самой высокой дослушиваемостью (качество). 
+        <strong style="color: #f5576c;">Зона риска</strong> — выпуски с самой низкой дослушиваемостью (требуют внимания).
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Данные для зала славы и зоны риска
+    hall_data = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Старты': 'sum',
+        'Стримы': 'sum',
+        'Дослушиваемость': 'mean',
+        'Средний_прослушивания': 'mean',
+        'RSI': 'mean'
+    }).reset_index()
+    
+    # Фильтруем выпуски с хотя бы 10 стартами
+    hall_data = hall_data[hall_data['Старты'] >= 10]
+    
+    if not hall_data.empty:
+        # Топ-5 по дослушиваемости
+        hall_of_fame = hall_data.sort_values('Дослушиваемость', ascending=False).head(5)
+        # Топ-5 по дослушиваемости (с конца)
+        danger_zone = hall_data.sort_values('Дослушиваемость', ascending=True).head(5)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <span style="font-size: 1.5rem; font-weight: 700; color: #43e97b;">🏆 Зал славы</span>
+                <span style="font-size: 0.9rem; color: rgba(255,255,255,0.5); margin-left: 0.5rem;">(лучшая дослушиваемость)</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            for i, (_, row) in enumerate(hall_of_fame.iterrows()):
+                medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]
+                st.markdown(f"""
+                <div class="hall-of-fame">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.2rem;">{medal}</span>
+                            <span style="color: white; font-weight: 600; margin-left: 0.5rem;">{row['Короткое название']}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="color: #43e97b; font-weight: 700; font-size: 1.1rem;">{row['Дослушиваемость']*100:.1f}%</span>
+                            <span style="color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-left: 0.5rem;">| {row['Старты']:,} стартов</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.3rem; font-size: 0.8rem; color: rgba(255,255,255,0.5);">
+                        <span>🎯 Средний %: {row['Средний_прослушивания']*100:.1f}%</span>
+                        <span>⭐ RSI: {row['RSI']:.1f}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <span style="font-size: 1.5rem; font-weight: 700; color: #f5576c;">⚠️ Зона риска</span>
+                <span style="font-size: 0.9rem; color: rgba(255,255,255,0.5); margin-left: 0.5rem;">(худшая дослушиваемость)</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            for i, (_, row) in enumerate(danger_zone.iterrows()):
+                st.markdown(f"""
+                <div class="danger-zone">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.2rem;">{'⚠️' if i < 3 else '📌'}</span>
+                            <span style="color: white; font-weight: 600; margin-left: 0.5rem;">{row['Короткое название']}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="color: #f5576c; font-weight: 700; font-size: 1.1rem;">{row['Дослушиваемость']*100:.1f}%</span>
+                            <span style="color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-left: 0.5rem;">| {row['Старты']:,} стартов</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.3rem; font-size: 0.8rem; color: rgba(255,255,255,0.5);">
+                        <span>🎯 Средний %: {row['Средний_прослушивания']*100:.1f}%</span>
+                        <span>⭐ RSI: {row['RSI']:.1f}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("ℹ️ Недостаточно данных для Зала славы и Зоны риска (нужно минимум 10 стартов на выпуск)")
+
+    # ============================================
+    # ТОП ВЫПУСКОВ ПО RSI (было)
+    # ============================================
+    st.markdown("---")
     st.markdown('<div class="section-title">🏆 Топ выпусков по RSI</div>', unsafe_allow_html=True)
 
     episode_rsi = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
@@ -861,14 +1266,18 @@ if page == "📊 Общая аналитика":
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # ============================================
+    # ТОП ЖАНРОВ
+    # ============================================
     st.markdown("---")
-
     st.markdown('<div class="section-title">🎭 Топ жанров</div>', unsafe_allow_html=True)
 
     genre_stats = filtered_data.groupby('Жанр').agg({
         'Старты': 'sum',
         'Стримы': 'sum',
-        'RSI': 'mean'
+        'RSI': 'mean',
+        'Дослушиваемость': 'mean',
+        'Средний_прослушивания': 'mean'
     }).reset_index()
     genre_stats['Конверсия'] = (genre_stats['Стримы'] / genre_stats['Старты'] * 100).fillna(0)
     genre_stats = genre_stats.sort_values('Старты', ascending=False)
@@ -906,18 +1315,19 @@ if page == "📊 Общая аналитика":
         st.plotly_chart(fig4, use_container_width=True)
 
     with col3:
-        st.markdown('<div class="chart-subtitle-conversion">📈 По конверсии</div>', unsafe_allow_html=True)
-        top_genre_conv = genre_stats[genre_stats['Старты'] > 10].sort_values('Конверсия', ascending=False).head(8)
+        st.markdown('<div class="chart-subtitle-conversion">📈 По дослушиваемости</div>', unsafe_allow_html=True)
+        top_genre_completion = genre_stats[genre_stats['Старты'] > 10].sort_values('Дослушиваемость', ascending=False).head(8)
         
         fig5 = go.Figure(data=[go.Bar(
-            x=top_genre_conv['Жанр'],
-            y=top_genre_conv['Конверсия'],
-            marker=dict(color=top_genre_conv['Конверсия'], colorscale='Greens', showscale=False),
-            text=top_genre_conv['Конверсия'].round(1),
+            x=top_genre_completion['Жанр'],
+            y=top_genre_completion['Дослушиваемость'] * 100,
+            marker=dict(color=top_genre_completion['Дослушиваемость'] * 100, colorscale='Greens', showscale=False),
+            text=top_genre_completion['Дослушиваемость'] * 100,
+            texttemplate='%{text:.1f}%',
             textposition='outside',
             textfont=dict(color='white', size=10)
         )])
-        fig5.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=300, xaxis=dict(tickangle=-15, tickfont=dict(color='white', size=9)), yaxis=dict(title='Конверсия (%)', titlefont=dict(color='#43e97b', size=11), tickfont=dict(color='white', size=9), gridcolor='rgba(255,255,255,0.05)'), showlegend=False)
+        fig5.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=300, xaxis=dict(tickangle=-15, tickfont=dict(color='white', size=9)), yaxis=dict(title='Дослушиваемость %', titlefont=dict(color='#43e97b', size=11), tickfont=dict(color='white', size=9), gridcolor='rgba(255,255,255,0.05)'), showlegend=False)
         st.plotly_chart(fig5, use_container_width=True)
 
     st.markdown("---")
@@ -970,14 +1380,18 @@ if page == "📊 Общая аналитика":
         'Старты': 'sum',
         'Стримы': 'sum',
         'RSI': 'mean',
+        'Дослушиваемость': 'mean',
+        'Средний_прослушивания': 'mean',
         'Формат': 'first',
         'Жанр': 'first'
     }).reset_index()
     episode_summary['Конверсия'] = (episode_summary['Стримы'] / episode_summary['Старты'] * 100).fillna(0)
     episode_summary = episode_summary.sort_values('RSI', ascending=False)
 
-    display_df = episode_summary[['Короткое название', 'Старты', 'Стримы', 'Конверсия', 'RSI', 'Формат', 'Жанр']].copy()
-    display_df.columns = ['Название', 'Старты', 'Стримы', 'Конверсия %', 'RSI', 'Формат', 'Жанр']
+    display_df = episode_summary[['Короткое название', 'Старты', 'Стримы', 'Конверсия', 'Дослушиваемость', 'Средний_прослушивания', 'RSI', 'Формат', 'Жанр']].copy()
+    display_df.columns = ['Название', 'Старты', 'Стримы', 'Конверсия %', 'Дослушиваемость %', 'Средний %', 'RSI', 'Формат', 'Жанр']
+    display_df['Дослушиваемость %'] = display_df['Дослушиваемость %'] * 100
+    display_df['Средний %'] = display_df['Средний %'] * 100
 
     try:
         st.dataframe(display_df.head(50), width=1200, height=400)
@@ -1310,8 +1724,7 @@ elif page == "📋 Анализ выпуска":
             st.markdown("""
             <div style="color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-bottom: 1rem;">
                 Показывает, как накапливаются прослушивания (<strong style="color: #f5576c;">стримы</strong>) 
-                и запуски (<strong style="color: #4facfe;">старты</strong>) с течением времени. 
-                Чем быстрее кривая достигает 100% — тем быстрее выпуск "выдыхается".
+                с течением времени. Чем быстрее кривая достигает 100% — тем быстрее выпуск "выдыхается".
             </div>
             """, unsafe_allow_html=True)
             
@@ -1482,8 +1895,8 @@ elif page == "📋 Анализ выпуска":
                 
                 stages = [
                     f'Старты<br>{funnel_data["stage_1"]:,.0f} чел.',
-                    f'Средний %<br>{funnel_data["avg_listen"]:.0f}% — {funnel_data["stage_2"]:,.0f} чел.',
-                    f'Дослушали<br>{funnel_data["completion"]:.0f}% — {funnel_data["stage_3"]:,.0f} чел.'
+                    f'Средний %<br>{funnel_data["avg_listen"]*100:.0f}% — {funnel_data["stage_2"]:,.0f} чел.',
+                    f'Дослушали<br>{funnel_data["completion"]*100:.0f}% — {funnel_data["stage_3"]:,.0f} чел.'
                 ]
                 
                 values = [
@@ -1589,10 +2002,10 @@ elif page == "📋 Анализ выпуска":
                     """, unsafe_allow_html=True)
                 
                 with col3:
-                    if funnel_data['completion'] > 40:
+                    if funnel_data['completion'] > 0.4:
                         verdict = "🏆 Отличный результат!"
                         color = "#43e97b"
-                    elif funnel_data['completion'] > 25:
+                    elif funnel_data['completion'] > 0.25:
                         verdict = "📊 Средний результат"
                         color = "#f6d365"
                     else:
@@ -1609,7 +2022,7 @@ elif page == "📋 Анализ выпуска":
                             {verdict}
                         </div>
                         <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-top: 0.3rem;">
-                            Дослушивают: {funnel_data["completion"]:.0f}% <br>
+                            Дослушивают: {funnel_data["completion"]*100:.0f}% <br>
                             ({funnel_data["stage_3"]:,.0f} чел.)
                         </div>
                     </div>
@@ -2137,8 +2550,8 @@ else:
                     
                     stages1 = [
                         f'Старты<br>{funnel1["stage_1"]:,.0f}',
-                        f'Средний %<br>{funnel1["avg_listen"]:.0f}%',
-                        f'Дослушали<br>{funnel1["completion"]:.0f}%'
+                        f'Средний %<br>{funnel1["avg_listen"]*100:.0f}%',
+                        f'Дослушали<br>{funnel1["completion"]*100:.0f}%'
                     ]
                     
                     values1 = [funnel1['stage_1'], funnel1['stage_2'], funnel1['stage_3']]
@@ -2188,8 +2601,8 @@ else:
                     
                     stages2 = [
                         f'Старты<br>{funnel2["stage_1"]:,.0f}',
-                        f'Средний %<br>{funnel2["avg_listen"]:.0f}%',
-                        f'Дослушали<br>{funnel2["completion"]:.0f}%'
+                        f'Средний %<br>{funnel2["avg_listen"]*100:.0f}%',
+                        f'Дослушали<br>{funnel2["completion"]*100:.0f}%'
                     ]
                     
                     values2 = [funnel2['stage_1'], funnel2['stage_2'], funnel2['stage_3']]
@@ -2249,19 +2662,19 @@ else:
                     ],
                     ep1_short: [
                         f"{funnel1['stage_1']:,.0f}",
-                        f"{funnel1['avg_listen']:.1f}%",
-                        f"{funnel1['completion']:.1f}%",
+                        f"{funnel1['avg_listen']*100:.1f}%",
+                        f"{funnel1['completion']*100:.1f}%",
                         f"{drop1_1:,.0f} ({drop1_1_pct:.1f}%)",
                         f"{drop1_2:,.0f} ({drop1_2_pct:.1f}%)",
-                        f"{funnel1['stage_1'] - funnel1['stage_3']:,.0f} ({100 - funnel1['completion']:.1f}%)"
+                        f"{funnel1['stage_1'] - funnel1['stage_3']:,.0f} ({100 - funnel1['completion']*100:.1f}%)"
                     ],
                     ep2_short: [
                         f"{funnel2['stage_1']:,.0f}",
-                        f"{funnel2['avg_listen']:.1f}%",
-                        f"{funnel2['completion']:.1f}%",
+                        f"{funnel2['avg_listen']*100:.1f}%",
+                        f"{funnel2['completion']*100:.1f}%",
                         f"{drop2_1:,.0f} ({drop2_1_pct:.1f}%)",
                         f"{drop2_2:,.0f} ({drop2_2_pct:.1f}%)",
-                        f"{funnel2['stage_1'] - funnel2['stage_3']:,.0f} ({100 - funnel2['completion']:.1f}%)"
+                        f"{funnel2['stage_1'] - funnel2['stage_3']:,.0f} ({100 - funnel2['completion']*100:.1f}%)"
                     ]
                 })
                 
