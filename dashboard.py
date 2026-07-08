@@ -2265,7 +2265,7 @@ else:
                     ]
                 })
                 
-                st.dataframe(comparison_data, use_container_width=True, hide_index=True)
+                st.dataframe(comparison_data, use_container_width=True)
                 
                 st.markdown("---")
                 col1, col2, col3 = st.columns([1, 1, 2])
