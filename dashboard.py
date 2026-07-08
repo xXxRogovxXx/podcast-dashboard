@@ -790,14 +790,6 @@ if page == "📊 Общая аналитика":
         st.caption(f"**Записей:** {len(df_total):,}")
         st.caption(f"**Период:** {min_date} — {max_date}")
         st.caption(f"**Выпусков:** {len(df_ref):,}")
-        
-        st.markdown("---")
-        # Кнопка экспорта
-        st.markdown("### 📤 Экспорт отчета")
-        if st.button("🔄 Сгенерировать отчет", use_container_width=True):
-            with st.spinner("Генерация отчета..."):
-                download_link = get_pdf_download_link(filtered_data)
-                st.markdown(download_link, unsafe_allow_html=True)
 
     filtered_data = df_merged.copy()
 
@@ -812,7 +804,18 @@ if page == "📊 Общая аналитика":
 
     if selected_genre != 'Все':
         filtered_data = filtered_data[filtered_data['Жанр'] == selected_genre]
-
+    # ===== ВСТАВЬТЕ КНОПКУ ЭКСПОРТА СЮДА =====
+    # Кнопка экспорта
+    st.markdown("### 📤 Экспорт отчета")
+    col_export, col_export2 = st.columns([1, 5])
+    with col_export:
+        if st.button("🔄 Сгенерировать PDF-отчет", use_container_width=True):
+            with st.spinner("Генерация отчета..."):
+                download_link = get_pdf_download_link(filtered_data)
+                st.markdown(download_link, unsafe_allow_html=True)
+    st.markdown("---")
+    # ===== КОНЕЦ ВСТАВКИ =====
+    
     total_starts = filtered_data['Старты'].sum()
     total_streams = filtered_data['Стримы'].sum()
     conversion = (total_streams / total_starts * 100) if total_starts > 0 else 0
