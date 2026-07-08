@@ -418,15 +418,27 @@ def load_data():
         df_ref['Дата релиза'] = pd.to_datetime(df_ref['Дата релиза'])
         df_ref['Короткое название'] = df_ref['Выпуск'].map(short_names_dict).fillna(df_ref['Выпуск'])
         
+        # ===== НОВЫЙ КОД: Добавляем метрики качества =====
+        # Переименовываем колонки для удобства
+        if 'Средний % прослушивания' in df_total.columns:
+            df_total['Средний_прослушивания'] = df_total['Средний % прослушивания']
+        else:
+            df_total['Средний_прослушивания'] = 0
+            
+        if '% дослушиваемости' in df_total.columns:
+            df_total['Дослушиваемость'] = df_total['% дослушиваемости']
+        else:
+            df_total['Дослушиваемость'] = 0
+        
+        # Заменяем пустые значения на 0
+        df_total['Средний_прослушивания'] = df_total['Средний_прослушивания'].fillna(0)
+        df_total['Дослушиваемость'] = df_total['Дослушиваемость'].fillna(0)
+        # ===== КОНЕЦ НОВОГО КОДА =====
+        
         return df_total, df_ref, short_names_dict
     except Exception as e:
         st.error(f"❌ Ошибка загрузки данных: {e}")
         st.stop()
-
-with st.spinner("🔄 Загрузка данных..."):
-    df_total, df_ref, short_names_dict = load_data()
-
-df_merged = df_total.merge(df_ref, on='Выпуск', how='left')
 
 # ============================================
 # РАСЧЕТ RSI
@@ -480,6 +492,34 @@ def get_episode_position(episode_data, all_data, metric):
         'status': status,
         'color': color,
         'diff_percent': ((episode_value - mean_value) / mean_value * 100)
+    }
+
+def get_funnel_data(episode_data):
+    """
+    Рассчитывает данные для воронки внимания
+    Возвращает словарь с тремя уровнями воронки
+    """
+    total_starts = episode_data['Старты'].sum()
+    
+    # Средний процент прослушивания (среднее арифметическое)
+    avg_listen = episode_data['Средний_прослушивания'].mean()
+    
+    # Процент дослушиваемости (среднее арифметическое)
+    completion = episode_data['Дослушиваемости'].mean()
+    
+    # Расчет количества людей на каждом этапе
+    stage_1 = total_starts  # 100% - все кто нажал старт
+    stage_2 = total_starts * (avg_listen / 100) if total_starts > 0 else 0  # Средний % прослушивания
+    stage_3 = total_starts * (completion / 100) if total_starts > 0 else 0  # % дослушиваемости
+    
+    return {
+        'total_starts': total_starts,
+        'avg_listen': avg_listen,
+        'completion': completion,
+        'stage_1': stage_1,
+        'stage_2': stage_2,
+        'stage_3': stage_3,
+        'has_data': total_starts > 0 and avg_listen > 0
     }
 
 # ============================================
@@ -620,7 +660,7 @@ if page == "📊 Общая аналитика":
     unique_episodes = filtered_data['Выпуск'].nunique()
     avg_rsi = filtered_data['RSI'].mean()
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
 
     with col1:
         st.markdown(f"""
@@ -630,7 +670,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Всего стартов</div>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col2:
         st.markdown(f"""
         <div class="metric-card">
@@ -639,7 +679,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Всего стримов</div>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col3:
         st.markdown(f"""
         <div class="metric-card">
@@ -648,7 +688,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Конверсия</div>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col4:
         st.markdown(f"""
         <div class="metric-card">
@@ -657,13 +697,24 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Выпусков</div>
         </div>
         """, unsafe_allow_html=True)
-
+    
     with col5:
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-icon">⭐</div>
             <div class="metric-value">{avg_rsi:.1f}</div>
             <div class="metric-label">Средний RSI</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ===== НОВАЯ МЕТРИКА =====
+    with col6:
+        avg_listen_all = filtered_data['Средний_прослушивания'].mean()
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-icon">🎯</div>
+            <div class="metric-value">{avg_listen_all:.1f}%</div>
+            <div class="metric-label">Средний % прослушивания</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1429,6 +1480,174 @@ elif page == "📋 Анализ выпуска":
             else:
                 st.warning("⚠️ Недостаточно данных для построения кривой жизни.")
 
+                        # ============================================
+            # ВОРОНКА ВНИМАНИЯ
+            # ============================================
+            st.markdown("---")
+            st.markdown('<div class="section-title">📊 Воронка внимания</div>', unsafe_allow_html=True)
+            
+            st.markdown("""
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-bottom: 1rem;">
+                Показывает, сколько слушателей <strong style="color: #4facfe;">начинают</strong> выпуск, 
+                сколько <strong style="color: #f6d365;">слушают в среднем</strong> 
+                и сколько <strong style="color: #43e97b;">дослушивают до конца</strong>.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Получаем данные для воронки
+            funnel_data = get_funnel_data(episode_data)
+            
+            if funnel_data['has_data']:
+                # Создаем воронку
+                fig_funnel = go.Figure()
+                
+                # Подготавливаем данные
+                stages = [
+                    f'Старты<br>{funnel_data["stage_1"]:,.0f} чел.',
+                    f'Средний %<br>{funnel_data["avg_listen"]:.0f}% — {funnel_data["stage_2"]:,.0f} чел.',
+                    f'Дослушали<br>{funnel_data["completion"]:.0f}% — {funnel_data["stage_3"]:,.0f} чел.'
+                ]
+                
+                values = [
+                    funnel_data['stage_1'],
+                    funnel_data['stage_2'],
+                    funnel_data['stage_3']
+                ]
+                
+                # Цвета для каждого этапа
+                colors = ['#4facfe', '#f6d365', '#43e97b']
+                
+                fig_funnel.add_trace(go.Funnel(
+                    name='Воронка внимания',
+                    y=stages,
+                    x=values,
+                    textinfo="value+percent initial",
+                    textposition="inside",
+                    textfont=dict(color="white", size=14, family="Arial Black"),
+                    marker=dict(
+                        color=colors,
+                        line=dict(width=2, color='white')
+                    ),
+                    hovertemplate='<b>%{y}</b><br>Количество: %{x:,.0f}<br>Процент от стартов: %{percentInitial:.1f}%<extra></extra>'
+                ))
+                
+                fig_funnel.update_layout(
+                    template='plotly_dark',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    height=450,
+                    showlegend=False,
+                    font=dict(color='white', size=12),
+                    xaxis=dict(
+                        title='Количество слушателей',
+                        titlefont=dict(color='white', size=13),
+                        tickfont=dict(color='white', size=11),
+                        gridcolor='rgba(255,255,255,0.05)'
+                    )
+                )
+                
+                st.plotly_chart(fig_funnel, use_container_width=True)
+                
+                # Дополнительная интерпретация
+                st.markdown("---")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    # Потеря на первом этапе (Старты -> Средний %)
+                    drop_1 = funnel_data['stage_1'] - funnel_data['stage_2']
+                    drop_1_pct = (drop_1 / funnel_data['stage_1'] * 100) if funnel_data['stage_1'] > 0 else 0
+                    
+                    if drop_1_pct > 30:
+                        status = "⚠️ Высокая потеря"
+                        color = "#f5576c"
+                    elif drop_1_pct > 15:
+                        status = "📊 Средняя потеря"
+                        color = "#f6d365"
+                    else:
+                        status = "✅ Отличное удержание"
+                        color = "#43e97b"
+                    
+                    st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.05); 
+                                border-radius: 10px; 
+                                padding: 0.8rem; 
+                                border: 1px solid {color};
+                                text-align: center;">
+                        <div style="color: {color}; font-size: 1.2rem; font-weight: 600;">
+                            {status}
+                        </div>
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-top: 0.3rem;">
+                            Потеря: {drop_1_pct:.0f}% <br>
+                            ({drop_1:,.0f} чел.)
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    # Потеря на втором этапе (Средний % -> Дослушивание)
+                    drop_2 = funnel_data['stage_2'] - funnel_data['stage_3']
+                    drop_2_pct = (drop_2 / funnel_data['stage_2'] * 100) if funnel_data['stage_2'] > 0 else 0
+                    
+                    if drop_2_pct > 30:
+                        status = "⚠️ Провал в концовке"
+                        color = "#f5576c"
+                    elif drop_2_pct > 15:
+                        status = "📊 Слабая концовка"
+                        color = "#f6d365"
+                    else:
+                        status = "✅ Сильная концовка"
+                        color = "#43e97b"
+                    
+                    st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.05); 
+                                border-radius: 10px; 
+                                padding: 0.8rem; 
+                                border: 1px solid {color};
+                                text-align: center;">
+                        <div style="color: {color}; font-size: 1.2rem; font-weight: 600;">
+                            {status}
+                        </div>
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-top: 0.3rem;">
+                            Потеря: {drop_2_pct:.0f}% <br>
+                            ({drop_2:,.0f} чел.)
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    # Общая конверсия (Старты -> Дослушивание)
+                    total_drop = funnel_data['stage_1'] - funnel_data['stage_3']
+                    total_drop_pct = (total_drop / funnel_data['stage_1'] * 100) if funnel_data['stage_1'] > 0 else 0
+                    
+                    if funnel_data['completion'] > 40:
+                        verdict = "🏆 Отличный результат!"
+                        color = "#43e97b"
+                    elif funnel_data['completion'] > 25:
+                        verdict = "📊 Средний результат"
+                        color = "#f6d365"
+                    else:
+                        verdict = "🔽 Требует улучшения"
+                        color = "#f5576c"
+                    
+                    st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.05); 
+                                border-radius: 10px; 
+                                padding: 0.8rem; 
+                                border: 1px solid {color};
+                                text-align: center;">
+                        <div style="color: {color}; font-size: 1.2rem; font-weight: 600;">
+                            {verdict}
+                        </div>
+                        <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin-top: 0.3rem;">
+                            Дослушивают: {funnel_data["completion"]:.0f}% <br>
+                            ({funnel_data["stage_3"]:,.0f} чел.)
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+            else:
+                st.warning("⚠️ Недостаточно данных для построения воронки внимания.")
+
 
 # ============================================
 # СТРАНИЦА 3: СРАВНЕНИЕ ВЫПУСКОВ
@@ -1992,3 +2211,249 @@ else:
                             <span>Выпуски примерно равны по RSI!</span>
                         </div>
                         """, unsafe_allow_html=True)
+
+                                # ============================================
+            # СРАВНЕНИЕ ВОРОНОК ВНИМАНИЯ
+            # ============================================
+            st.markdown("---")
+            st.markdown('<div class="section-title">📊 Сравнение воронок внимания</div>', unsafe_allow_html=True)
+            
+            st.markdown("""
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-bottom: 1rem;">
+                Сравнение потерь аудитории на каждом этапе для двух выпусков.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Получаем данные для воронок обоих выпусков
+            funnel1 = get_funnel_data(data1)
+            funnel2 = get_funnel_data(data2)
+            
+            if funnel1['has_data'] and funnel2['has_data']:
+                # Создаем две воронки рядом
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown(f"""
+                    <div style="background: rgba(79, 172, 254, 0.1); 
+                                border: 1px solid rgba(79, 172, 254, 0.3); 
+                                border-radius: 10px; 
+                                padding: 0.5rem; 
+                                text-align: center;
+                                margin-bottom: 0.5rem;">
+                        <h4 style="color: #4facfe; margin: 0;">{ep1_short}</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Воронка для первого выпуска
+                    fig_funnel1 = go.Figure()
+                    
+                    stages1 = [
+                        f'Старты<br>{funnel1["stage_1"]:,.0f}',
+                        f'Средний %<br>{funnel1["avg_listen"]:.0f}%',
+                        f'Дослушали<br>{funnel1["completion"]:.0f}%'
+                    ]
+                    
+                    values1 = [funnel1['stage_1'], funnel1['stage_2'], funnel1['stage_3']]
+                    colors1 = ['#4facfe', '#f6d365', '#43e97b']
+                    
+                    fig_funnel1.add_trace(go.Funnel(
+                        name=ep1_short,
+                        y=stages1,
+                        x=values1,
+                        textinfo="value+percent initial",
+                        textposition="inside",
+                        textfont=dict(color="white", size=12),
+                        marker=dict(color=colors1, line=dict(width=2, color='white')),
+                        hovertemplate='<b>%{y}</b><br>%{x:,.0f}<br>%{percentInitial:.1f}%<extra></extra>'
+                    ))
+                    
+                    fig_funnel1.update_layout(
+                        template='plotly_dark',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        height=400,
+                        showlegend=False,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        xaxis=dict(
+                            title='Количество слушателей',
+                            titlefont=dict(color='white', size=11),
+                            tickfont=dict(color='white', size=10),
+                            gridcolor='rgba(255,255,255,0.05)'
+                        )
+                    )
+                    
+                    st.plotly_chart(fig_funnel1, use_container_width=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div style="background: rgba(245, 87, 108, 0.1); 
+                                border: 1px solid rgba(245, 87, 108, 0.3); 
+                                border-radius: 10px; 
+                                padding: 0.5rem; 
+                                text-align: center;
+                                margin-bottom: 0.5rem;">
+                        <h4 style="color: #f5576c; margin: 0;">{ep2_short}</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Воронка для второго выпуска
+                    fig_funnel2 = go.Figure()
+                    
+                    stages2 = [
+                        f'Старты<br>{funnel2["stage_1"]:,.0f}',
+                        f'Средний %<br>{funnel2["avg_listen"]:.0f}%',
+                        f'Дослушали<br>{funnel2["completion"]:.0f}%'
+                    ]
+                    
+                    values2 = [funnel2['stage_1'], funnel2['stage_2'], funnel2['stage_3']]
+                    colors2 = ['#f5576c', '#f6d365', '#43e97b']
+                    
+                    fig_funnel2.add_trace(go.Funnel(
+                        name=ep2_short,
+                        y=stages2,
+                        x=values2,
+                        textinfo="value+percent initial",
+                        textposition="inside",
+                        textfont=dict(color="white", size=12),
+                        marker=dict(color=colors2, line=dict(width=2, color='white')),
+                        hovertemplate='<b>%{y}</b><br>%{x:,.0f}<br>%{percentInitial:.1f}%<extra></extra>'
+                    ))
+                    
+                    fig_funnel2.update_layout(
+                        template='plotly_dark',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        height=400,
+                        showlegend=False,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        xaxis=dict(
+                            title='Количество слушателей',
+                            titlefont=dict(color='white', size=11),
+                            tickfont=dict(color='white', size=10),
+                            gridcolor='rgba(255,255,255,0.05)'
+                        )
+                    )
+                    
+                    st.plotly_chart(fig_funnel2, use_container_width=True)
+                
+                # Сравнительная таблица потерь
+                st.markdown("---")
+                st.markdown('<div class="section-title">📉 Сравнение потерь аудитории</div>', unsafe_allow_html=True)
+                
+                # Расчет потерь
+                drop1_1 = funnel1['stage_1'] - funnel1['stage_2']
+                drop1_1_pct = (drop1_1 / funnel1['stage_1'] * 100) if funnel1['stage_1'] > 0 else 0
+                
+                drop1_2 = funnel1['stage_2'] - funnel1['stage_3']
+                drop1_2_pct = (drop1_2 / funnel1['stage_2'] * 100) if funnel1['stage_2'] > 0 else 0
+                
+                drop2_1 = funnel2['stage_1'] - funnel2['stage_2']
+                drop2_1_pct = (drop2_1 / funnel2['stage_1'] * 100) if funnel2['stage_1'] > 0 else 0
+                
+                drop2_2 = funnel2['stage_2'] - funnel2['stage_3']
+                drop2_2_pct = (drop2_2 / funnel2['stage_2'] * 100) if funnel2['stage_2'] > 0 else 0
+                
+                # Создаем DataFrame для сравнения
+                comparison_data = pd.DataFrame({
+                    'Показатель': [
+                        'Старты (всего)',
+                        'Средний % прослушивания',
+                        'Дослушиваемость',
+                        'Потеря: Старты → Средний %',
+                        'Потеря: Средний % → Дослушивание',
+                        'Общая потеря (Старты → Дослушивание)'
+                    ],
+                    ep1_short: [
+                        f"{funnel1['stage_1']:,.0f}",
+                        f"{funnel1['avg_listen']:.1f}%",
+                        f"{funnel1['completion']:.1f}%",
+                        f"{drop1_1:,.0f} ({drop1_1_pct:.1f}%)",
+                        f"{drop1_2:,.0f} ({drop1_2_pct:.1f}%)",
+                        f"{funnel1['stage_1'] - funnel1['stage_3']:,.0f} ({100 - funnel1['completion']:.1f}%)"
+                    ],
+                    ep2_short: [
+                        f"{funnel2['stage_1']:,.0f}",
+                        f"{funnel2['avg_listen']:.1f}%",
+                        f"{funnel2['completion']:.1f}%",
+                        f"{drop2_1:,.0f} ({drop2_1_pct:.1f}%)",
+                        f"{drop2_2:,.0f} ({drop2_2_pct:.1f}%)",
+                        f"{funnel2['stage_1'] - funnel2['stage_3']:,.0f} ({100 - funnel2['completion']:.1f}%)"
+                    ]
+                })
+                
+                st.dataframe(comparison_data, use_container_width=True, hide_index=True)
+                
+                # Вердикт по воронкам
+                st.markdown("---")
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    if funnel1['completion'] > funnel2['completion']:
+                        winner = ep1_short
+                        color = "#4facfe"
+                        detail = "лучше удерживает аудиторию до конца"
+                    elif funnel2['completion'] > funnel1['completion']:
+                        winner = ep2_short
+                        color = "#f5576c"
+                        detail = "лучше удерживает аудиторию до конца"
+                    else:
+                        winner = "Ничья"
+                        color = "#f6d365"
+                        detail = "оба выпуска одинаково удерживают аудиторию"
+                    
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: {color};">
+                        <strong style="color: {color} !important;">🏆 Победитель по удержанию</strong><br>
+                        <span style="color: {color} !important;">{winner}</span><br>
+                        <span>{detail}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    # Сравнение потерь на первом этапе
+                    if drop1_1_pct < drop2_1_pct:
+                        better = ep1_short
+                        color = "#4facfe"
+                        detail = "меньше теряет в начале"
+                    elif drop2_1_pct < drop1_1_pct:
+                        better = ep2_short
+                        color = "#f5576c"
+                        detail = "меньше теряет в начале"
+                    else:
+                        better = "Ничья"
+                        color = "#f6d365"
+                        detail = "одинаковые потери в начале"
+                    
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: {color};">
+                        <strong style="color: {color} !important;">🎯 Лучший старт</strong><br>
+                        <span style="color: {color} !important;">{better}</span><br>
+                        <span>{detail}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    # Сравнение потерь на втором этапе
+                    if drop1_2_pct < drop2_2_pct:
+                        better = ep1_short
+                        color = "#43e97b"
+                        detail = "лучшая концовка"
+                    elif drop2_2_pct < drop1_2_pct:
+                        better = ep2_short
+                        color = "#43e97b"
+                        detail = "лучшая концовка"
+                    else:
+                        better = "Ничья"
+                        color = "#f6d365"
+                        detail = "одинаковые концовки"
+                    
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: {color};">
+                        <strong style="color: {color} !important;">🏁 Лучшая концовка</strong><br>
+                        <span style="color: {color} !important;">{better}</span><br>
+                        <span>{detail}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+            else:
+                st.warning("⚠️ Недостаточно данных для сравнения воронок внимания.")
