@@ -522,8 +522,8 @@ def get_funnel_data(episode_data):
         completion = 0
     
     stage_1 = total_starts
-    stage_2 = total_starts * (avg_listen / 100) if total_starts > 0 else 0
-    stage_3 = total_starts * (completion / 100) if total_starts > 0 else 0
+    stage_2 = total_starts * avg_listen if total_starts > 0 else 0
+    stage_3 = total_starts * completion if total_starts > 0 else 0
     
     return {
         'total_starts': total_starts,
