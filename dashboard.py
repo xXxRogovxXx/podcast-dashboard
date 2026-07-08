@@ -418,42 +418,39 @@ def load_data():
         df_ref['Дата релиза'] = pd.to_datetime(df_ref['Дата релиза'])
         df_ref['Короткое название'] = df_ref['Выпуск'].map(short_names_dict).fillna(df_ref['Выпуск'])
         
-        # ===== НОВЫЙ КОД: Добавляем метрики качества =====
-        # Переименовываем колонки для удобства
+        # ===== ДОБАВЛЯЕМ НОВЫЕ МЕТРИКИ =====
         if 'Средний % прослушивания' in df_total.columns:
-            df_total['Средний_прослушивания'] = df_total['Средний % прослушивания']
+            df_total['Средний_прослушивания'] = df_total['Средний % прослушивания'].fillna(0)
         else:
             df_total['Средний_прослушивания'] = 0
             
         if '% дослушиваемости' in df_total.columns:
-            df_total['Дослушиваемость'] = df_total['% дослушиваемости']
+            df_total['Дослушиваемость'] = df_total['% дослушиваемости'].fillna(0)
         else:
             df_total['Дослушиваемость'] = 0
-        
-        # Заменяем пустые значения на 0
-        df_total['Средний_прослушивания'] = df_total['Средний_прослушивания'].fillna(0)
-        df_total['Дослушиваемость'] = df_total['Дослушиваемость'].fillna(0)
-        # ===== КОНЕЦ НОВОГО КОДА =====
+        # ===== КОНЕЦ ДОБАВЛЕНИЯ =====
         
         return df_total, df_ref, short_names_dict
     except Exception as e:
         st.error(f"❌ Ошибка загрузки данных: {e}")
         st.stop()
 
+with st.spinner("🔄 Загрузка данных..."):
+    df_total, df_ref, short_names_dict = load_data()
+
 df_merged = df_total.merge(df_ref, on='Выпуск', how='left')
 
-# ===== ДОБАВЛЯЕМ НОВЫЕ КОЛОНКИ В df_merged =====
-# Убеждаемся, что колонки существуют и заполняем пустые значения
-if 'Средний_прослушивания' in df_merged.columns:
-    df_merged['Средний_прослушивания'] = df_merged['Средний_прослушивания'].fillna(0)
-else:
+# ===== УБЕЖДАЕМСЯ, ЧТО НОВЫЕ КОЛОНКИ ЕСТЬ В df_merged =====
+if 'Средний_прослушивания' not in df_merged.columns:
     df_merged['Средний_прослушивания'] = 0
-
-if 'Дослушиваемость' in df_merged.columns:
-    df_merged['Дослушиваемость'] = df_merged['Дослушиваемость'].fillna(0)
 else:
+    df_merged['Средний_прослушивания'] = df_merged['Средний_прослушивания'].fillna(0)
+
+if 'Дослушиваемость' not in df_merged.columns:
     df_merged['Дослушиваемость'] = 0
-# ===== КОНЕЦ ДОБАВЛЕНИЯ =====
+else:
+    df_merged['Дослушиваемость'] = df_merged['Дослушиваемость'].fillna(0)
+# ===== КОНЕЦ ПРОВЕРКИ =====
 
 # ============================================
 # РАСЧЕТ RSI
@@ -516,16 +513,17 @@ def get_funnel_data(episode_data):
     """
     total_starts = episode_data['Старты'].sum()
     
-    # Средний процент прослушивания (среднее арифметическое)
     avg_listen = episode_data['Средний_прослушивания'].mean()
+    if pd.isna(avg_listen):
+        avg_listen = 0
     
-    # Процент дослушиваемости (среднее арифметическое)
-    completion = episode_data['Дослушиваемости'].mean()
+    completion = episode_data['Дослушиваемость'].mean()
+    if pd.isna(completion):
+        completion = 0
     
-    # Расчет количества людей на каждом этапе
-    stage_1 = total_starts  # 100% - все кто нажал старт
-    stage_2 = total_starts * (avg_listen / 100) if total_starts > 0 else 0  # Средний % прослушивания
-    stage_3 = total_starts * (completion / 100) if total_starts > 0 else 0  # % дослушиваемости
+    stage_1 = total_starts
+    stage_2 = total_starts * (avg_listen / 100) if total_starts > 0 else 0
+    stage_3 = total_starts * (completion / 100) if total_starts > 0 else 0
     
     return {
         'total_starts': total_starts,
@@ -534,34 +532,24 @@ def get_funnel_data(episode_data):
         'stage_1': stage_1,
         'stage_2': stage_2,
         'stage_3': stage_3,
-        'has_data': total_starts > 0 and avg_listen > 0
+        'has_data': total_starts > 0 and (avg_listen > 0 or completion > 0)
     }
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ КРИВОЙ ЖИЗНИ
 # ============================================
 def get_life_curve(episode_data, release_date):
-    """
-    Строит кумулятивную кривую жизни выпуска
-    Возвращает: dataframe с днями от релиза и накопленными стримами
-    """
-    # Сортируем по дате
     episode_data = episode_data.sort_values('Дата прослушивания')
-    
-    # Добавляем колонку "День от релиза"
     episode_data['День от релиза'] = (episode_data['Дата прослушивания'] - release_date).dt.days + 1
     
-    # Группируем по дням
     daily = episode_data.groupby('День от релиза').agg({
         'Стримы': 'sum',
         'Старты': 'sum'
     }).reset_index()
     
-    # Кумулятивная сумма стримов
     daily['Стримы_накоп'] = daily['Стримы'].cumsum()
     daily['Старты_накоп'] = daily['Старты'].cumsum()
     
-    # Нормируем на 100% (от общего числа стримов за весь период)
     total_streams = daily['Стримы'].sum()
     if total_streams > 0:
         daily['Стримы_норм'] = (daily['Стримы_накоп'] / total_streams * 100).round(1)
@@ -571,20 +559,13 @@ def get_life_curve(episode_data, release_date):
     return daily
 
 def get_life_curve_for_period(episode_name, df_merged, period_days=None):
-    """
-    Возвращает кривую жизни для выпуска за указанный период
-    period_days: None (все время) или число дней
-    """
-    # Данные по выпуску
     episode_data = df_merged[df_merged['Выпуск'] == episode_name].copy()
     
     if episode_data.empty:
         return None
     
-    # Релизная дата
     release_date = episode_data['Дата прослушивания'].min()
     
-    # Фильтруем по периоду (если нужно)
     if period_days is not None:
         episode_data = episode_data[
             episode_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=period_days - 1)
@@ -595,10 +576,8 @@ def get_life_curve_for_period(episode_name, df_merged, period_days=None):
 # ============================================
 # ФОРМИРОВАНИЕ ХРОНОЛОГИЧЕСКОГО СПИСКА ВЫПУСКОВ
 # ============================================
-# Берём порядок из справочника (как в Excel)
 chronological_episodes = df_ref['Выпуск'].tolist()
 
-# Создаём словарь: короткое_название -> полное_название (с учётом порядка из справочника)
 episode_names_ordered = {}
 short_names_ordered = []
 
@@ -674,6 +653,7 @@ if page == "📊 Общая аналитика":
     conversion = (total_streams / total_starts * 100) if total_starts > 0 else 0
     unique_episodes = filtered_data['Выпуск'].nunique()
     avg_rsi = filtered_data['RSI'].mean()
+    avg_listen_all = filtered_data['Средний_прослушивания'].mean()
 
     col1, col2, col3, col4, col5, col6 = st.columns(6)
 
@@ -685,7 +665,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Всего стартов</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col2:
         st.markdown(f"""
         <div class="metric-card">
@@ -694,7 +674,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Всего стримов</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col3:
         st.markdown(f"""
         <div class="metric-card">
@@ -703,7 +683,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Конверсия</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col4:
         st.markdown(f"""
         <div class="metric-card">
@@ -712,7 +692,7 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Выпусков</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col5:
         st.markdown(f"""
         <div class="metric-card">
@@ -721,10 +701,8 @@ if page == "📊 Общая аналитика":
             <div class="metric-label">Средний RSI</div>
         </div>
         """, unsafe_allow_html=True)
-    
-    # ===== НОВАЯ МЕТРИКА =====
+
     with col6:
-        avg_listen_all = filtered_data['Средний_прослушивания'].mean()
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-icon">🎯</div>
@@ -741,11 +719,11 @@ if page == "📊 Общая аналитика":
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
             <div>
                 <div style="color: #4facfe; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🎬 Старты</div>
-                <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Количество запусков выпуска — базовый показатель популярности</div>
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Количество запусков выпуска</div>
             </div>
             <div>
                 <div style="color: #f5576c; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🎧 Стримы</div>
-                <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Прослушивания > 2 минут — показатель вовлеченности</div>
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Прослушивания > 2 минут</div>
             </div>
             <div>
                 <div style="color: #43e97b; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">📈 Конверсия</div>
@@ -758,6 +736,14 @@ if page == "📊 Общая аналитика":
                     (<strong style="color: #43e97b;">Конверсия</strong> + 1) × 
                     <strong style="color: #4facfe;">Старты<sup>0.1</sup></strong>
                 </div>
+            </div>
+            <div style="grid-column: span 3; margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="color: #f6d365; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🎯 Средний % прослушивания</div>
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Доля выпуска, которую в среднем слушает аудитория</div>
+            </div>
+            <div style="grid-column: span 3; margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="color: #43e97b; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🏁 % дослушиваемости</div>
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Доля пользователей, прослушавших 90+% выпуска</div>
             </div>
         </div>
     </div>
@@ -1102,7 +1088,6 @@ elif page == "📋 Анализ выпуска":
         key="analysis_period"
     )
     
-    # Используем хронологический порядок из справочника
     selected_short = st.selectbox(
         "🎯 Выберите выпуск:",
         short_names_ordered,
@@ -1112,7 +1097,6 @@ elif page == "📋 Анализ выпуска":
     
     all_data = df_merged[df_merged['Выпуск'] == selected_episode].copy()
     
-    # Находим фактическую первую дату прослушивания в данных
     release_date = df_total[df_total['Выпуск'] == selected_episode]['Дата прослушивания'].min()
     
     if all_data.empty:
@@ -1139,7 +1123,6 @@ elif page == "📋 Анализ выпуска":
         if episode_data.empty:
             st.warning(f"⚠️ Нет данных для выпуска '{selected_short}' в выбранном периоде")
         else:
-            # Метрики в виде карточек
             total_starts_ep = episode_data['Старты'].sum()
             total_streams_ep = episode_data['Стримы'].sum()
             conv_ep = (total_streams_ep / total_starts_ep * 100) if total_starts_ep > 0 else 0
@@ -1183,7 +1166,6 @@ elif page == "📋 Анализ выпуска":
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Карточки с информацией о выпуске
             st.markdown("---")
             st.markdown('<div class="section-title">ℹ️ Информация о выпуске</div>', unsafe_allow_html=True)
             
@@ -1290,7 +1272,6 @@ elif page == "📋 Анализ выпуска":
                 fillcolor='rgba(245, 87, 108, 0.15)'
             ))
             
-            # ВЕРТИКАЛЬНАЯ ЛИНИЯ РЕЛИЗА
             fig.add_shape(
                 type="line",
                 x0=release_date,
@@ -1334,14 +1315,11 @@ elif page == "📋 Анализ выпуска":
             </div>
             """, unsafe_allow_html=True)
             
-            # Получаем кривую жизни для всего периода
             life_curve = get_life_curve_for_period(selected_episode, df_merged, period_days=None)
             
             if life_curve is not None and not life_curve.empty:
-                # Строим график
                 fig_life = go.Figure()
                 
-                # Кривая стримов (нормированная)
                 fig_life.add_trace(go.Scatter(
                     x=life_curve['День от релиза'],
                     y=life_curve['Стримы_норм'],
@@ -1354,7 +1332,6 @@ elif page == "📋 Анализ выпуска":
                     hovertemplate='День %{x}: %{y:.1f}%<extra></extra>'
                 ))
                 
-                # Добавляем вторую ось для абсолютных значений (опционально)
                 fig_life.add_trace(go.Scatter(
                     x=life_curve['День от релиза'],
                     y=life_curve['Стримы_накоп'],
@@ -1365,7 +1342,6 @@ elif page == "📋 Анализ выпуска":
                     hovertemplate='День %{x}: %{y:,.0f} стримов<extra></extra>'
                 ))
                 
-                # Настройка графика с двумя осями
                 fig_life.update_layout(
                     template='plotly_dark',
                     plot_bgcolor='rgba(0,0,0,0)',
@@ -1404,9 +1380,7 @@ elif page == "📋 Анализ выпуска":
                     )
                 )
                 
-                # Добавляем аннотацию: когда достигнут 50% и 90%
                 try:
-                    # 50%
                     idx_50 = (life_curve['Стримы_норм'] >= 50).idxmax() if (life_curve['Стримы_норм'] >= 50).any() else None
                     if idx_50 is not None:
                         day_50 = life_curve.loc[idx_50, 'День от релиза']
@@ -1422,7 +1396,6 @@ elif page == "📋 Анализ выпуска":
                             arrowcolor='#f6d365'
                         )
                     
-                    # 90%
                     idx_90 = (life_curve['Стримы_норм'] >= 90).idxmax() if (life_curve['Стримы_норм'] >= 90).any() else None
                     if idx_90 is not None:
                         day_90 = life_curve.loc[idx_90, 'День от релиза']
@@ -1442,27 +1415,23 @@ elif page == "📋 Анализ выпуска":
                 
                 st.plotly_chart(fig_life, use_container_width=True)
                 
-                # Дополнительная статистика под графиком
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     days_to_50 = life_curve[life_curve['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve['Стримы_норм'] >= 50).any() else '∞'
                     st.metric(
                         label="⏱️ Дней до 50% стримов",
-                        value=f"{days_to_50}" if days_to_50 != '∞' else "—",
-                        help="За сколько дней выпуск набирает половину всех прослушиваний"
+                        value=f"{days_to_50}" if days_to_50 != '∞' else "—"
                     )
                 
                 with col2:
                     days_to_90 = life_curve[life_curve['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve['Стримы_норм'] >= 90).any() else '∞'
                     st.metric(
                         label="⏱️ Дней до 90% стримов",
-                        value=f"{days_to_90}" if days_to_90 != '∞' else "—",
-                        help="За сколько дней выпуск набирает почти все прослушивания"
+                        value=f"{days_to_90}" if days_to_90 != '∞' else "—"
                     )
                 
                 with col3:
-                    # Простое правило: если 90% достигается за <7 дней — "быстрый", >30 — "долгий"
                     if days_to_90 != '∞':
                         if days_to_90 <= 7:
                             status = "⚡ Молниеносный (быстро выдыхается)"
@@ -1491,11 +1460,8 @@ elif page == "📋 Анализ выпуска":
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-                
-            else:
-                st.warning("⚠️ Недостаточно данных для построения кривой жизни.")
 
-                        # ============================================
+            # ============================================
             # ВОРОНКА ВНИМАНИЯ
             # ============================================
             st.markdown("---")
@@ -1509,14 +1475,11 @@ elif page == "📋 Анализ выпуска":
             </div>
             """, unsafe_allow_html=True)
             
-            # Получаем данные для воронки
             funnel_data = get_funnel_data(episode_data)
             
             if funnel_data['has_data']:
-                # Создаем воронку
                 fig_funnel = go.Figure()
                 
-                # Подготавливаем данные
                 stages = [
                     f'Старты<br>{funnel_data["stage_1"]:,.0f} чел.',
                     f'Средний %<br>{funnel_data["avg_listen"]:.0f}% — {funnel_data["stage_2"]:,.0f} чел.',
@@ -1529,7 +1492,6 @@ elif page == "📋 Анализ выпуска":
                     funnel_data['stage_3']
                 ]
                 
-                # Цвета для каждого этапа
                 colors = ['#4facfe', '#f6d365', '#43e97b']
                 
                 fig_funnel.add_trace(go.Funnel(
@@ -1563,12 +1525,10 @@ elif page == "📋 Анализ выпуска":
                 
                 st.plotly_chart(fig_funnel, use_container_width=True)
                 
-                # Дополнительная интерпретация
                 st.markdown("---")
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    # Потеря на первом этапе (Старты -> Средний %)
                     drop_1 = funnel_data['stage_1'] - funnel_data['stage_2']
                     drop_1_pct = (drop_1 / funnel_data['stage_1'] * 100) if funnel_data['stage_1'] > 0 else 0
                     
@@ -1599,7 +1559,6 @@ elif page == "📋 Анализ выпуска":
                     """, unsafe_allow_html=True)
                 
                 with col2:
-                    # Потеря на втором этапе (Средний % -> Дослушивание)
                     drop_2 = funnel_data['stage_2'] - funnel_data['stage_3']
                     drop_2_pct = (drop_2 / funnel_data['stage_2'] * 100) if funnel_data['stage_2'] > 0 else 0
                     
@@ -1630,10 +1589,6 @@ elif page == "📋 Анализ выпуска":
                     """, unsafe_allow_html=True)
                 
                 with col3:
-                    # Общая конверсия (Старты -> Дослушивание)
-                    total_drop = funnel_data['stage_1'] - funnel_data['stage_3']
-                    total_drop_pct = (total_drop / funnel_data['stage_1'] * 100) if funnel_data['stage_1'] > 0 else 0
-                    
                     if funnel_data['completion'] > 40:
                         verdict = "🏆 Отличный результат!"
                         color = "#43e97b"
@@ -1662,7 +1617,6 @@ elif page == "📋 Анализ выпуска":
                 
             else:
                 st.warning("⚠️ Недостаточно данных для построения воронки внимания.")
-
 
 # ============================================
 # СТРАНИЦА 3: СРАВНЕНИЕ ВЫПУСКОВ
@@ -1741,7 +1695,6 @@ else:
         if data1.empty or data2.empty:
             st.warning("⚠️ Нет данных для выбранных выпусков в этом периоде")
         else:
-            # Карточки с метриками для двух выпусков
             total_starts1 = data1['Старты'].sum()
             total_streams1 = data1['Стримы'].sum()
             conv1 = (total_streams1 / total_starts1 * 100) if total_starts1 > 0 else 0
@@ -1840,10 +1793,8 @@ else:
             
             st.markdown("---")
             
-            # Графики по дням от релиза
             st.markdown('<div class="section-title">📈 Динамика по дням от релиза</div>', unsafe_allow_html=True)
             
-            # Преобразуем даты в дни от релиза
             data1_copy = data1.copy()
             data2_copy = data2.copy()
             
@@ -1860,7 +1811,6 @@ else:
                 'Стримы': 'sum'
             }).reset_index()
             
-            # График стартов
             st.markdown('<div class="chart-subtitle-starts">🎬 Сравнение стартов по дням</div>', unsafe_allow_html=True)
             
             fig_starts = go.Figure()
@@ -1898,7 +1848,6 @@ else:
             
             st.plotly_chart(fig_starts, use_container_width=True)
             
-            # График стримов
             st.markdown('<div class="chart-subtitle-streams">🎧 Сравнение стримов по дням</div>', unsafe_allow_html=True)
             
             fig_streams = go.Figure()
@@ -1936,7 +1885,7 @@ else:
             
             st.plotly_chart(fig_streams, use_container_width=True)
 
-                        # ============================================
+            # ============================================
             # СРАВНЕНИЕ КРИВЫХ ЖИЗНИ ДВУХ ВЫПУСКОВ
             # ============================================
             st.markdown("---")
@@ -1950,15 +1899,12 @@ else:
             </div>
             """, unsafe_allow_html=True)
             
-            # Получаем кривые жизни для обоих выпусков
             life_curve1 = get_life_curve_for_period(ep1, df_merged, period_days=None)
             life_curve2 = get_life_curve_for_period(ep2, df_merged, period_days=None)
             
             if life_curve1 is not None and life_curve2 is not None and not life_curve1.empty and not life_curve2.empty:
-                # Строим сравнительный график
                 fig_compare_life = go.Figure()
                 
-                # Выпуск 1
                 fig_compare_life.add_trace(go.Scatter(
                     x=life_curve1['День от релиза'],
                     y=life_curve1['Стримы_норм'],
@@ -1971,7 +1917,6 @@ else:
                     hovertemplate='%{x:.0f} день: %{y:.1f}%<extra>%{fullData.name}</extra>'
                 ))
                 
-                # Выпуск 2
                 fig_compare_life.add_trace(go.Scatter(
                     x=life_curve2['День от релиза'],
                     y=life_curve2['Стримы_норм'],
@@ -1984,7 +1929,6 @@ else:
                     hovertemplate='%{x:.0f} день: %{y:.1f}%<extra>%{fullData.name}</extra>'
                 ))
                 
-                # Добавляем линии 50% и 90%
                 for y_val, color, label in [(50, '#f6d365', '50%'), (90, '#43e97b', '90%')]:
                     fig_compare_life.add_hline(
                         y=y_val, 
@@ -2027,15 +1971,12 @@ else:
                 
                 st.plotly_chart(fig_compare_life, use_container_width=True)
                 
-                # Сравнительная статистика
                 st.markdown("---")
                 st.markdown('<div class="section-title">📊 Сравнительная статистика</div>', unsafe_allow_html=True)
                 
-                # Считаем метрики для сравнения
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    # Дней до 50%
                     days1_50 = life_curve1[life_curve1['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve1['Стримы_норм'] >= 50).any() else None
                     days2_50 = life_curve2[life_curve2['Стримы_норм'] >= 50]['День от релиза'].min() if (life_curve2['Стримы_норм'] >= 50).any() else None
                     
@@ -2059,7 +2000,6 @@ else:
                         """, unsafe_allow_html=True)
                 
                 with col2:
-                    # Дней до 90%
                     days1_90 = life_curve1[life_curve1['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve1['Стримы_норм'] >= 90).any() else None
                     days2_90 = life_curve2[life_curve2['Стримы_норм'] >= 90]['День от релиза'].min() if (life_curve2['Стримы_норм'] >= 90).any() else None
                     
@@ -2083,7 +2023,6 @@ else:
                         """, unsafe_allow_html=True)
                 
                 with col3:
-                    # Скорость "взлета" (крутизна на первых 3 днях)
                     if len(life_curve1) >= 3 and len(life_curve2) >= 3:
                         slope1 = (life_curve1['Стримы_норм'].iloc[2] - life_curve1['Стримы_норм'].iloc[0]) / 2
                         slope2 = (life_curve2['Стримы_норм'].iloc[2] - life_curve2['Стримы_норм'].iloc[0]) / 2
@@ -2105,7 +2044,6 @@ else:
                         </div>
                         """, unsafe_allow_html=True)
                 
-                # Краткий вердикт по кривым жизни
                 st.markdown("---")
                 st.markdown('<div class="section-title">💡 Вывод</div>', unsafe_allow_html=True)
                 
@@ -2164,70 +2102,8 @@ else:
                             <span>Недостаточно данных для сравнения</span>
                         </div>
                         """, unsafe_allow_html=True)
-                # Итоговый вердикт по RSI
-                st.markdown("---")
-                st.markdown('<div class="section-title">🏆 Итоговый вердикт по RSI</div>', unsafe_allow_html=True)
-                
-                col1, col2, col3 = st.columns([1, 1, 2])
-                
-                with col1:
-                    st.markdown(f"""
-                    <div class="verdict-card">
-                        <strong>⭐ RSI {ep1_short}</strong><br>
-                        <span>{rsi1:.1f}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                    <div class="verdict-card">
-                        <strong>⭐ RSI {ep2_short}</strong><br>
-                        <span>{rsi2:.1f}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    if rsi1 > rsi2 * 1.05:
-                        st.markdown(f"""
-                        <div class="verdict-card" style="border-color: #43e97b;">
-                            <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
-                            <span style="color: #43e97b !important;">{ep1_short}</span><br>
-                            <span>значительно лучше по RSI!</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    elif rsi1 > rsi2:
-                        st.markdown(f"""
-                        <div class="verdict-card" style="border-color: #4facfe;">
-                            <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
-                            <span style="color: #4facfe !important;">{ep1_short}</span><br>
-                            <span>лучше по RSI!</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    elif rsi2 > rsi1 * 1.05:
-                        st.markdown(f"""
-                        <div class="verdict-card" style="border-color: #43e97b;">
-                            <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
-                            <span style="color: #43e97b !important;">{ep2_short}</span><br>
-                            <span>значительно лучше по RSI!</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    elif rsi2 > rsi1:
-                        st.markdown(f"""
-                        <div class="verdict-card" style="border-color: #4facfe;">
-                            <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
-                            <span style="color: #4facfe !important;">{ep2_short}</span><br>
-                            <span>лучше по RSI!</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                        <div class="verdict-card" style="border-color: #f6d365;">
-                            <strong style="color: #f6d365 !important;">🤝 Ничья</strong><br>
-                            <span>Выпуски примерно равны по RSI!</span>
-                        </div>
-                        """, unsafe_allow_html=True)
 
-                                # ============================================
+            # ============================================
             # СРАВНЕНИЕ ВОРОНОК ВНИМАНИЯ
             # ============================================
             st.markdown("---")
@@ -2239,12 +2115,10 @@ else:
             </div>
             """, unsafe_allow_html=True)
             
-            # Получаем данные для воронок обоих выпусков
             funnel1 = get_funnel_data(data1)
             funnel2 = get_funnel_data(data2)
             
             if funnel1['has_data'] and funnel2['has_data']:
-                # Создаем две воронки рядом
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -2259,7 +2133,6 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Воронка для первого выпуска
                     fig_funnel1 = go.Figure()
                     
                     stages1 = [
@@ -2311,7 +2184,6 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Воронка для второго выпуска
                     fig_funnel2 = go.Figure()
                     
                     stages2 = [
@@ -2351,11 +2223,9 @@ else:
                     
                     st.plotly_chart(fig_funnel2, use_container_width=True)
                 
-                # Сравнительная таблица потерь
                 st.markdown("---")
                 st.markdown('<div class="section-title">📉 Сравнение потерь аудитории</div>', unsafe_allow_html=True)
                 
-                # Расчет потерь
                 drop1_1 = funnel1['stage_1'] - funnel1['stage_2']
                 drop1_1_pct = (drop1_1 / funnel1['stage_1'] * 100) if funnel1['stage_1'] > 0 else 0
                 
@@ -2368,7 +2238,6 @@ else:
                 drop2_2 = funnel2['stage_2'] - funnel2['stage_3']
                 drop2_2_pct = (drop2_2 / funnel2['stage_2'] * 100) if funnel2['stage_2'] > 0 else 0
                 
-                # Создаем DataFrame для сравнения
                 comparison_data = pd.DataFrame({
                     'Показатель': [
                         'Старты (всего)',
@@ -2398,7 +2267,6 @@ else:
                 
                 st.dataframe(comparison_data, use_container_width=True, hide_index=True)
                 
-                # Вердикт по воронкам
                 st.markdown("---")
                 col1, col2, col3 = st.columns([1, 1, 2])
                 
@@ -2425,7 +2293,6 @@ else:
                     """, unsafe_allow_html=True)
                 
                 with col2:
-                    # Сравнение потерь на первом этапе
                     if drop1_1_pct < drop2_1_pct:
                         better = ep1_short
                         color = "#4facfe"
@@ -2448,7 +2315,6 @@ else:
                     """, unsafe_allow_html=True)
                 
                 with col3:
-                    # Сравнение потерь на втором этапе
                     if drop1_2_pct < drop2_2_pct:
                         better = ep1_short
                         color = "#43e97b"
@@ -2472,3 +2338,66 @@ else:
                 
             else:
                 st.warning("⚠️ Недостаточно данных для сравнения воронок внимания.")
+            
+            # Итоговый вердикт по RSI
+            st.markdown("---")
+            st.markdown('<div class="section-title">🏆 Итоговый вердикт по RSI</div>', unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns([1, 1, 2])
+            
+            with col1:
+                st.markdown(f"""
+                <div class="verdict-card">
+                    <strong>⭐ RSI {ep1_short}</strong><br>
+                    <span>{rsi1:.1f}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="verdict-card">
+                    <strong>⭐ RSI {ep2_short}</strong><br>
+                    <span>{rsi2:.1f}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                if rsi1 > rsi2 * 1.05:
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: #43e97b;">
+                        <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
+                        <span style="color: #43e97b !important;">{ep1_short}</span><br>
+                        <span>значительно лучше по RSI!</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif rsi1 > rsi2:
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: #4facfe;">
+                        <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
+                        <span style="color: #4facfe !important;">{ep1_short}</span><br>
+                        <span>лучше по RSI!</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif rsi2 > rsi1 * 1.05:
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: #43e97b;">
+                        <strong style="color: #43e97b !important;">🏆 Победитель</strong><br>
+                        <span style="color: #43e97b !important;">{ep2_short}</span><br>
+                        <span>значительно лучше по RSI!</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif rsi2 > rsi1:
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: #4facfe;">
+                        <strong style="color: #4facfe !important;">🏆 Победитель</strong><br>
+                        <span style="color: #4facfe !important;">{ep2_short}</span><br>
+                        <span>лучше по RSI!</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="verdict-card" style="border-color: #f6d365;">
+                        <strong style="color: #f6d365 !important;">🤝 Ничья</strong><br>
+                        <span>Выпуски примерно равны по RSI!</span>
+                    </div>
+                    """, unsafe_allow_html=True)
