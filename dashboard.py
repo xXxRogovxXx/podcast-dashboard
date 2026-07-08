@@ -436,125 +436,227 @@ st.markdown("""
 # ФУНКЦИЯ ДЛЯ ЭКСПОРТА В PDF
 # ============================================
 def get_pdf_download_link(df, filename="report.pdf"):
-    """Генерирует ссылку для скачивания отчета в PDF"""
+    """Генерирует PDF-отчет с помощью reportlab (работает на Streamlit Cloud)"""
     try:
-        from weasyprint import HTML
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch
         import tempfile
         import os
         
-        # Создаем HTML-отчет
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Подкаст Аналитика - Отчет</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; background: white; }}
-                h1 {{ color: #f5576c; border-bottom: 2px solid #f5576c; padding-bottom: 10px; }}
-                h2 {{ color: #4facfe; margin-top: 30px; }}
-                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
-                th {{ background: #4facfe; color: white; padding: 10px; text-align: left; }}
-                td {{ padding: 8px; border-bottom: 1px solid #ddd; }}
-                tr:hover {{ background: #f5f5f5; }}
-                .metric {{ display: inline-block; margin: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; }}
-                .metric-value {{ font-size: 2rem; font-weight: bold; color: #f5576c; }}
-                .metric-label {{ color: #666; }}
-                .footer {{ margin-top: 50px; text-align: center; color: #999; font-size: 0.8rem; border-top: 1px solid #ddd; padding-top: 20px; }}
-                .badge-good {{ color: #43e97b; font-weight: bold; }}
-                .badge-bad {{ color: #f5576c; font-weight: bold; }}
-            </style>
-        </head>
-        <body>
-            <h1>🎙️ Подкаст Аналитика - Отчет</h1>
-            <p><strong>Дата создания:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
-            <p><strong>Период:</strong> {df['Дата прослушивания'].min().date()} — {df['Дата прослушивания'].max().date()}</p>
-            
-            <h2>📊 Общая статистика</h2>
-            <div class="metric">
-                <div class="metric-value">{df['Старты'].sum():,}</div>
-                <div class="metric-label">Всего стартов</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value">{df['Стримы'].sum():,}</div>
-                <div class="metric-label">Всего стримов</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value">{(df['Стримы'].sum() / df['Старты'].sum() * 100) if df['Старты'].sum() > 0 else 0:.1f}%</div>
-                <div class="metric-label">Конверсия</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value">{df['Средний_прослушивания'].mean():.1f}%</div>
-                <div class="metric-label">Средний % прослушивания</div>
-            </div>
-            
-            <h2>📈 Топ выпусков по популярности</h2>
-            <table>
-                <tr><th>#</th><th>Название</th><th>Старты</th><th>Стримы</th><th>Дослушиваемость</th></tr>
-                {''.join([f"<tr><td>{i+1}</td><td>{row['Короткое название']}</td><td>{row['Старты']:,}</td><td>{row['Стримы']:,}</td><td>{row['Дослушиваемость']:.1f}%</td></tr>" 
-                         for i, (_, row) in enumerate(df.groupby(['Выпуск', 'Короткое название']).agg({
-                             'Старты': 'sum', 
-                             'Стримы': 'sum',
-                             'Дослушиваемость': 'mean'
-                         }).reset_index().sort_values('Старты', ascending=False).head(10).iterrows())])}
-            </table>
-            
-            <h2>🏆 Зал славы (лучшая дослушиваемость)</h2>
-            <table>
-                <tr><th>#</th><th>Название</th><th>Дослушиваемость</th><th>Старты</th></tr>
-                {''.join([f"<tr><td>{i+1}</td><td>{row['Короткое название']}</td><td class='badge-good'>{row['Дослушиваемость']:.1f}%</td><td>{row['Старты']:,}</td></tr>" 
-                         for i, (_, row) in enumerate(df.groupby(['Выпуск', 'Короткое название']).agg({
-                             'Дослушиваемость': 'mean',
-                             'Старты': 'sum'
-                         }).reset_index().sort_values('Дослушиваемость', ascending=False).head(10).iterrows())])}
-            </table>
-            
-            <h2>⚠️ Зона риска (худшая дослушиваемость)</h2>
-            <table>
-                <tr><th>#</th><th>Название</th><th>Дослушиваемость</th><th>Старты</th></tr>
-                {''.join([f"<tr><td>{i+1}</td><td>{row['Короткое название']}</td><td class='badge-bad'>{row['Дослушиваемость']:.1f}%</td><td>{row['Старты']:,}</td></tr>" 
-                         for i, (_, row) in enumerate(df.groupby(['Выпуск', 'Короткое название']).agg({
-                             'Дослушиваемость': 'mean',
-                             'Старты': 'sum'
-                         }).reset_index().sort_values('Дослушиваемость', ascending=True).head(10).iterrows())])}
-            </table>
-            
-            <div class="footer">
-                🎙️ Подкаст Аналитика Pro • Сгенерировано автоматически
-            </div>
-        </body>
-        </html>
-        """
+        # Создаем временный файл
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            pdf_path = tmp_file.name
         
         # Создаем PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as f:
-            f.write(html_content.encode('utf-8'))
-            html_path = f.name
+        doc = SimpleDocTemplate(pdf_path, pagesize=A4, 
+                               rightMargin=72, leftMargin=72,
+                               topMargin=72, bottomMargin=72)
         
-        pdf_path = html_path.replace('.html', '.pdf')
-        HTML(html_path).write_pdf(pdf_path)
+        styles = getSampleStyleSheet()
+        
+        # Стиль заголовка
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#f5576c'),
+            spaceAfter=30,
+            alignment=1  # Центр
+        )
+        
+        # Стиль подзаголовка
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=16,
+            textColor=colors.HexColor('#4facfe'),
+            spaceAfter=12,
+            spaceBefore=20
+        )
+        
+        # Стиль для подписей
+        normal_style = styles['Normal']
+        
+        story = []
+        
+        # ===== ЗАГОЛОВОК =====
+        story.append(Paragraph("🎙️ Подкаст Аналитика - Отчет", title_style))
+        story.append(Paragraph(f"<b>Дата создания:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
+        story.append(Paragraph(f"<b>Период:</b> {df['Дата прослушивания'].min().date()} — {df['Дата прослушивания'].max().date()}", normal_style))
+        story.append(Spacer(1, 20))
+        
+        # ===== ОБЩАЯ СТАТИСТИКА =====
+        story.append(Paragraph("📊 Общая статистика", heading_style))
+        
+        total_starts = df['Старты'].sum()
+        total_streams = df['Стримы'].sum()
+        conversion = (total_streams / total_starts * 100) if total_starts > 0 else 0
+        avg_listen = df['Средний_прослушивания'].mean() * 100
+        avg_completion = df['Дослушиваемость'].mean() * 100
+        unique_episodes = df['Выпуск'].nunique()
+        
+        # Данные для таблицы
+        stats_data = [
+            ['📌 Метрика', '📊 Значение'],
+            ['Всего стартов', f'{total_starts:,}'],
+            ['Всего стримов', f'{total_streams:,}'],
+            ['Конверсия', f'{conversion:.1f}%'],
+            ['Средний % прослушивания', f'{avg_listen:.1f}%'],
+            ['Средняя дослушиваемость', f'{avg_completion:.1f}%'],
+            ['Количество выпусков', f'{unique_episodes}'],
+        ]
+        
+        stats_table = Table(stats_data, colWidths=[3*inch, 2.5*inch])
+        stats_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#4facfe')),
+            ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+            ('ALIGN', (0, 0), (1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (1, 0), 12),
+            ('BACKGROUND', (0, 1), (1, -1), colors.HexColor('#f8f9fa')),
+            ('GRID', (0, 0), (1, -1), 1, colors.grey),
+            ('FONTSIZE', (0, 1), (1, -1), 10),
+            ('VALIGN', (0, 0), (1, -1), 'MIDDLE'),
+        ]))
+        story.append(stats_table)
+        story.append(Spacer(1, 20))
+        
+        # ===== ТОП ВЫПУСКОВ =====
+        story.append(Paragraph("🏆 Топ выпусков по популярности", heading_style))
+        
+        top_episodes = df.groupby(['Выпуск', 'Короткое название']).agg({
+            'Старты': 'sum',
+            'Стримы': 'sum',
+            'Дослушиваемость': 'mean'
+        }).reset_index().sort_values('Старты', ascending=False).head(10)
+        
+        top_data = [['#', 'Название', 'Старты', 'Стримы', 'Дослушив.']]
+        for i, (_, row) in enumerate(top_episodes.iterrows()):
+            top_data.append([
+                str(i+1),
+                row['Короткое название'][:50] if len(row['Короткое название']) > 50 else row['Короткое название'],
+                f"{row['Старты']:,}",
+                f"{row['Стримы']:,}",
+                f"{row['Дослушиваемость']*100:.1f}%"
+            ])
+        
+        top_table = Table(top_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
+        top_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5576c')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(top_table)
+        story.append(Spacer(1, 20))
+        
+        # ===== ЗАЛ СЛАВЫ =====
+        story.append(Paragraph("🏆 Зал славы (лучшая дослушиваемость)", heading_style))
+        
+        hall_of_fame = df.groupby(['Выпуск', 'Короткое название']).agg({
+            'Дослушиваемость': 'mean',
+            'Старты': 'sum',
+            'Средний_прослушивания': 'mean'
+        }).reset_index().sort_values('Дослушиваемость', ascending=False).head(10)
+        
+        hall_data = [['#', 'Название', 'Дослушив.', 'Старты', 'Средний %']]
+        for i, (_, row) in enumerate(hall_of_fame.iterrows()):
+            hall_data.append([
+                str(i+1),
+                row['Короткое название'][:50] if len(row['Короткое название']) > 50 else row['Короткое название'],
+                f"{row['Дослушиваемость']*100:.1f}%",
+                f"{row['Старты']:,}",
+                f"{row['Средний_прослушивания']*100:.1f}%"
+            ])
+        
+        hall_table = Table(hall_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
+        hall_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#43e97b')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(hall_table)
+        story.append(Spacer(1, 20))
+        
+        # ===== ЗОНА РИСКА =====
+        story.append(Paragraph("⚠️ Зона риска (худшая дослушиваемость)", heading_style))
+        
+        danger_zone = df.groupby(['Выпуск', 'Короткое название']).agg({
+            'Дослушиваемость': 'mean',
+            'Старты': 'sum',
+            'Средний_прослушивания': 'mean'
+        }).reset_index().sort_values('Дослушиваемость', ascending=True).head(10)
+        
+        danger_data = [['#', 'Название', 'Дослушив.', 'Старты', 'Средний %']]
+        for i, (_, row) in enumerate(danger_zone.iterrows()):
+            danger_data.append([
+                str(i+1),
+                row['Короткое название'][:50] if len(row['Короткое название']) > 50 else row['Короткое название'],
+                f"{row['Дослушиваемость']*100:.1f}%",
+                f"{row['Старты']:,}",
+                f"{row['Средний_прослушивания']*100:.1f}%"
+            ])
+        
+        danger_table = Table(danger_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
+        danger_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5576c')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(danger_table)
+        story.append(Spacer(1, 20))
+        
+        # ===== ПОДВАЛ =====
+        story.append(Paragraph(
+            "🎙️ Подкаст Аналитика Pro • Сгенерировано автоматически", 
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey, alignment=1)
+        ))
+        
+        # Строим PDF
+        doc.build(story)
         
         # Читаем PDF
         with open(pdf_path, 'rb') as f:
             pdf_data = f.read()
         
-        # Удаляем временные файлы
-        os.unlink(html_path)
         os.unlink(pdf_path)
         
-        # Создаем ссылку для скачивания
         b64 = base64.b64encode(pdf_data).decode()
-        href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="display: inline-block; background: linear-gradient(135deg, #f5576c, #f093fb); color: white; padding: 10px 25px; border-radius: 8px; text-decoration: none; font-weight: bold;">📥 Скачать PDF-отчет</a>'
+        href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="display: inline-block; background: linear-gradient(135deg, #4facfe, #f093fb); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">📥 Скачать отчет (PDF)</a>'
         return href
         
     except ImportError:
-        # Если weasyprint не установлен, предлагаем CSV
-        csv = df.to_csv(index=False).encode('utf-8')
-        b64 = base64.b64encode(csv).decode()
-        href = f'<a href="data:file/csv;base64,{b64}" download="report.csv" style="display: inline-block; background: linear-gradient(135deg, #4facfe, #f093fb); color: white; padding: 10px 25px; border-radius: 8px; text-decoration: none; font-weight: bold;">📥 Скачать CSV (PDF требует установки weasyprint)</a>'
-        return href
+        # Если reportlab не установлен - fallback на CSV
+        return get_csv_download_link(df)
     except Exception as e:
         return f"<span style='color: #f5576c;'>⚠️ Ошибка генерации отчета: {str(e)}</span>"
+
+def get_csv_download_link(df, filename="report.csv"):
+    """Резервный вариант - CSV (если reportlab не работает)"""
+    try:
+        csv = df.to_csv(index=False).encode('utf-8')
+        b64 = base64.b64encode(csv).decode()
+        return f'<a href="data:file/csv;base64,{b64}" download="{filename}" style="display: inline-block; background: linear-gradient(135deg, #4facfe, #f093fb); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">📥 Скачать отчет (CSV)</a>'
+    except Exception as e:
+        return f"<span style='color: #f5576c;'>⚠️ Ошибка: {str(e)}</span>"
 
 # ============================================
 # ЗАГРУЗКА ДАННЫХ
