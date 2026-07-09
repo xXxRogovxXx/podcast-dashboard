@@ -9,14 +9,41 @@ import base64
 from io import BytesIO
 
 # ============================================
-# НАСТРОЙКА СТРАНИЦЫ
+# НАСТРОЙКА ВАЖНЫХ ДАТ (ФИЧЕРИНГИ)
 # ============================================
-st.set_page_config(
-    page_title="🎙️ Подкаст Аналитика Pro",
-    page_icon="🎙️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Добавляйте новые даты в этот словарь для отображения на всех линейных графиках
+IMPORTANT_DATES = {
+    "2025-05-19": {"label": "🎤 Фичеринг 1", "color": "#FFD700", "dash": "dash"},
+    "2025-09-15": {"label": "🎤 Фичеринг 2", "color": "#FF6B6B", "dash": "dot"},
+    # Пример добавления новой даты:
+    # "2025-01-10": {"label": "🎤 Фичеринг 3", "color": "#4ECDC4", "dash": "dashdot"},
+}
+
+def add_important_dates_to_fig(fig, date_column="Дата прослушивания"):
+    """
+    Добавляет вертикальные линии с метками для важных дат на график Plotly.
+    
+    Параметры:
+    - fig: объект графика Plotly
+    - date_column: название столбца с датами (по умолчанию 'Дата прослушивания')
+    """
+    for date_str, props in IMPORTANT_DATES.items():
+        fig.add_vline(
+            x=pd.to_datetime(date_str),
+            line_dash=props.get("dash", "dash"),
+            line_color=props.get("color", "#FFD700"),
+            line_width=2,
+            annotation_text=props.get("label", ""),
+            annotation_position="top",
+            annotation_font=dict(
+                color=props.get("color", "#FFD700"),
+                size=10,
+                family="Arial"
+            ),
+            annotation_bgcolor="rgba(0,0,0,0.7)",
+            layer="below"
+        )
+    return fig
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ ПОДСКАЗОК К ГРАФИКАМ
@@ -128,8 +155,46 @@ st.markdown("""
     .stSelectbox label { color: #ffffff !important; font-weight: 600 !important; font-size: 1.1rem !important; text-shadow: 0 0 15px rgba(240, 147, 251, 0.5) !important; }
     div[data-testid="stMetric"] label { color: #ffffff !important; font-weight: 600 !important; font-size: 1rem !important; text-shadow: 0 0 10px rgba(240, 147, 251, 0.4) !important; }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #f093fb !important; font-weight: 700 !important; }
+    .important-dates-legend {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+    }
+    .date-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: rgba(0,0,0,0.3);
+        padding: 0.2rem 0.6rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# ============================================
+# ОТОБРАЖЕНИЕ ЛЕГЕНДЫ ВАЖНЫХ ДАТ
+# ============================================
+def show_important_dates_legend():
+    """Показывает легенду с важными датами в сайдбаре или вверху страницы"""
+    if IMPORTANT_DATES:
+        legend_html = '<div class="important-dates-legend">'
+        legend_html += '<span style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">📅 Важные даты: </span>'
+        for date_str, props in IMPORTANT_DATES.items():
+            date_obj = pd.to_datetime(date_str)
+            legend_html += f'<span class="date-badge">'
+            legend_html += f'<span style="color: {props["color"]}; font-size: 1.2rem;">●</span>'
+            legend_html += f'<span style="color: white;">{props["label"]}</span>'
+            legend_html += f'<span style="color: rgba(255,255,255,0.5);">({date_obj.strftime("%d.%m.%Y")})</span>'
+            legend_html += '</span>'
+        legend_html += '</div>'
+        st.markdown(legend_html, unsafe_allow_html=True)
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ ЭКСПОРТА В PDF
@@ -512,6 +577,15 @@ st.markdown('<div class="sub-title">ПРЕМИУМ ДАШБОРД • АНАЛИ
 # ============================================
 page = st.sidebar.radio("📊 Меню", ["📊 Общая аналитика", "📋 Анализ выпуска", "🔄 Сравнение выпусков"], index=0)
 
+# Показываем легенду важных дат в сайдбаре
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("### 📅 Важные даты")
+    for date_str, props in IMPORTANT_DATES.items():
+        date_obj = pd.to_datetime(date_str)
+        st.markdown(f'<span style="color: {props["color"]}; font-size: 1.2rem;">●</span> <span style="color: white;">{props["label"]}</span> <span style="color: rgba(255,255,255,0.5);">({date_obj.strftime("%d.%m.%Y")})</span>', unsafe_allow_html=True)
+    st.markdown("---")
+
 # ============================================
 # СТРАНИЦА 1: ОБЩАЯ АНАЛИТИКА
 # ============================================
@@ -546,6 +620,9 @@ if page == "📊 Общая аналитика":
 
     if selected_genre != 'Все':
         filtered_data = filtered_data[filtered_data['Жанр'] == selected_genre]
+
+    # ===== ПОКАЗЫВАЕМ ЛЕГЕНДУ ВАЖНЫХ ДАТ =====
+    show_important_dates_legend()
 
     # ===== КНОПКА ЭКСПОРТА =====
     st.markdown("### 📤 Экспорт отчета")
@@ -613,6 +690,10 @@ if page == "📊 Общая аналитика":
     fig1.add_trace(go.Scatter(x=daily_stats['Дата прослушивания'], y=daily_stats['Старты'], name='Старты', line=dict(color='#4facfe', width=3), fill='tozeroy', fillcolor='rgba(79, 172, 254, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#4facfe', width=2))))
     fig1.add_trace(go.Scatter(x=daily_stats['Дата прослушивания'], y=daily_stats['Стримы'], name='Стримы', line=dict(color='#f5576c', width=3), fill='tozeroy', fillcolor='rgba(245, 87, 108, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#f5576c', width=2))))
     fig1.add_trace(go.Scatter(x=daily_stats['Дата прослушивания'], y=daily_stats['Конверсия'], name='Конверсия (%)', line=dict(color='#43e97b', width=2, dash='dash'), mode='lines+markers', marker=dict(size=5, color='#43e97b')), secondary_y=True)
+    
+    # ДОБАВЛЯЕМ ВАЖНЫЕ ДАТЫ
+    fig1 = add_important_dates_to_fig(fig1)
+    
     fig1.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=500, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='Дата', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Количество', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis2=dict(title='Конверсия (%)', titlefont=dict(color='#43e97b', size=13), tickfont=dict(color='#43e97b', size=11), overlaying='y', side='right', showgrid=False))
     st.plotly_chart(fig1, use_container_width=True)
 
@@ -811,6 +892,9 @@ if page == "📊 Общая аналитика":
 elif page == "📋 Анализ выпуска":
     st.markdown('<div class="page-title">📋 Детальный анализ выпуска</div>', unsafe_allow_html=True)
     
+    # Показываем легенду важных дат
+    show_important_dates_legend()
+    
     period = st.radio(
         "📅 Выберите период анализа:",
         ["1 день", "1 неделя", "1 месяц", "Всё время"],
@@ -899,6 +983,10 @@ elif page == "📋 Анализ выпуска":
             fig.add_trace(go.Scatter(x=daily_data['Дата прослушивания'], y=daily_data['Стримы'], name='Стримы', line=dict(color='#f5576c', width=3), fill='tozeroy', fillcolor='rgba(245, 87, 108, 0.15)'))
             fig.add_shape(type="line", x0=release_date, y0=0, x1=release_date, y1=1, yref="paper", line=dict(color="#f093fb", width=2, dash="dash"))
             fig.add_annotation(x=release_date, y=0.98, yref="paper", text="📅 Релиз", showarrow=False, font=dict(color="#f093fb", size=12), textangle=-90)
+            
+            # ДОБАВЛЯЕМ ВАЖНЫЕ ДАТЫ
+            fig = add_important_dates_to_fig(fig)
+            
             fig.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')))
             st.plotly_chart(fig, use_container_width=True)
 
@@ -914,8 +1002,7 @@ elif page == "📋 Анализ выпуска":
                 fig_life.add_trace(go.Scatter(x=life_curve['День от релиза'], y=life_curve['Стримы_норм'], name='Стримы (накоплено)', line=dict(color='#f5576c', width=4), mode='lines+markers', marker=dict(size=8, color='white', line=dict(color='#f5576c', width=2)), fill='tozeroy', fillcolor='rgba(245, 87, 108, 0.15)', hovertemplate='День %{x}: %{y:.1f}%<extra></extra>'))
                 fig_life.add_trace(go.Scatter(x=life_curve['День от релиза'], y=life_curve['Стримы_накоп'], name='Стримы (абс.)', line=dict(color='#f093fb', width=2, dash='dash'), mode='lines', yaxis='y2', hovertemplate='День %{x}: %{y:,.0f} стримов<extra></extra>'))
                 
-                fig_life.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, life_curve['День от релиза'].max() + 2]), yaxis=dict(title='% от всех стримов', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, 105]), yaxis2=dict(title='Стримы (абс.)', titlefont=dict(color='#f093fb', size=13), tickfont=dict(color='white', size=11), overlaying='y', side='right', showgrid=False))
-                
+                # Добавляем маркеры для 50% и 90%
                 try:
                     idx_50 = (life_curve['Стримы_норм'] >= 50).idxmax() if (life_curve['Стримы_норм'] >= 50).any() else None
                     if idx_50 is not None:
@@ -927,6 +1014,8 @@ elif page == "📋 Анализ выпуска":
                         fig_life.add_annotation(x=day_90, y=90, text=f"🎯 90% на день {int(day_90)}", showarrow=True, arrowhead=2, ax=20, ay=30, font=dict(color='#43e97b', size=11), arrowcolor='#43e97b')
                 except:
                     pass
+                
+                fig_life.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, life_curve['День от релиза'].max() + 2]), yaxis=dict(title='% от всех стримов', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, 105]), yaxis2=dict(title='Стримы (абс.)', titlefont=dict(color='#f093fb', size=13), tickfont=dict(color='white', size=11), overlaying='y', side='right', showgrid=False))
                 
                 st.plotly_chart(fig_life, use_container_width=True)
                 
@@ -991,6 +1080,9 @@ elif page == "📋 Анализ выпуска":
 # ============================================
 else:
     st.markdown('<div class="page-title">🔄 Сравнение двух выпусков</div>', unsafe_allow_html=True)
+    
+    # Показываем легенду важных дат
+    show_important_dates_legend()
     
     period = st.radio(
         "📅 Выберите период анализа:",
