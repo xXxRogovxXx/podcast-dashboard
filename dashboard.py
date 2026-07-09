@@ -22,27 +22,71 @@ IMPORTANT_DATES = {
 def add_important_dates_to_fig(fig, date_column="Дата прослушивания"):
     """
     Добавляет вертикальные линии с метками для важных дат на график Plotly.
+    Работает с обычными графиками и с subplots (вторичная ось).
     
     Параметры:
     - fig: объект графика Plotly
     - date_column: название столбца с датами (по умолчанию 'Дата прослушивания')
     """
     for date_str, props in IMPORTANT_DATES.items():
-        fig.add_vline(
-            x=pd.to_datetime(date_str),
-            line_dash=props.get("dash", "dash"),
-            line_color=props.get("color", "#FFD700"),
-            line_width=2,
-            annotation_text=props.get("label", ""),
-            annotation_position="top",
-            annotation_font=dict(
-                color=props.get("color", "#FFD700"),
-                size=10,
-                family="Arial"
-            ),
-            annotation_bgcolor="rgba(0,0,0,0.7)",
-            layer="below"
-        )
+        try:
+            # Пробуем стандартный метод add_vline
+            fig.add_vline(
+                x=pd.to_datetime(date_str),
+                line_dash=props.get("dash", "dash"),
+                line_color=props.get("color", "#FFD700"),
+                line_width=2,
+                annotation_text=props.get("label", ""),
+                annotation_position="top",
+                annotation_font=dict(
+                    color=props.get("color", "#FFD700"),
+                    size=10,
+                    family="Arial"
+                ),
+                annotation_bgcolor="rgba(0,0,0,0.7)",
+                layer="below"
+            )
+        except Exception as e:
+            # Если не получается (например, с subplots), добавляем shape вручную
+            try:
+                # Определяем, есть ли вторичная ось
+                has_secondary = hasattr(fig, '_grid_ref') and fig._grid_ref is not None
+                
+                if has_secondary:
+                    # Для subplots добавляем линию на основную ось
+                    fig.add_shape(
+                        type="line",
+                        x0=pd.to_datetime(date_str),
+                        x1=pd.to_datetime(date_str),
+                        y0=0,
+                        y1=1,
+                        yref="paper",
+                        line=dict(
+                            color=props.get("color", "#FFD700"),
+                            width=2,
+                            dash=props.get("dash", "dash")
+                        ),
+                        layer="below"
+                    )
+                    # Добавляем аннотацию
+                    fig.add_annotation(
+                        x=pd.to_datetime(date_str),
+                        y=1.02,
+                        yref="paper",
+                        text=props.get("label", ""),
+                        showarrow=False,
+                        font=dict(
+                            color=props.get("color", "#FFD700"),
+                            size=10,
+                            family="Arial"
+                        ),
+                        bgcolor="rgba(0,0,0,0.7)",
+                        xanchor="center"
+                    )
+            except:
+                # Если совсем не получается, пропускаем эту дату
+                pass
+    
     return fig
 
 # ============================================
