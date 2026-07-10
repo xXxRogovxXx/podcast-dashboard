@@ -260,44 +260,29 @@ def get_pdf_download_link(df, filename="report.pdf"):
         import tempfile
         import os
         
+        # Ищем шрифт в нескольких местах (для Streamlit Cloud)
         font_paths = [
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
-            '/System/Library/Fonts/Helvetica.ttf',
-            'C:/Windows/Fonts/arial.ttf',
+            'DejaVuSans.ttf',  # В корне проекта
+            './DejaVuSans.ttf',
+            os.path.join(os.path.dirname(__file__), 'DejaVuSans.ttf'),
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Системный в Linux
         ]
         
         font_registered = False
         for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
-                    pdfmetrics.registerFont(TTFont('UnicodeFont', font_path))
+            try:
+                if os.path.exists(font_path):
+                    pdfmetrics.registerFont(TTFont('CyrillicFont', font_path))
                     font_registered = True
                     break
-                except:
-                    continue
+            except:
+                continue
         
-        use_translit = not font_registered
-        
-        def fix_text(text):
-            if not use_translit and font_registered:
-                return text
-            translit_map = {
-                'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e',
-                'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
-                'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-                'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
-                'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-                'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E',
-                'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
-                'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
-                'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch',
-                'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
-            }
-            result = ''
-            for char in text:
-                result += translit_map.get(char, char)
-            return result
+        # Если не нашли — используем Helvetica как запасной
+        if not font_registered:
+            font_name = 'Helvetica'
+        else:
+            font_name = 'CyrillicFont'
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
             pdf_path = tmp_file.name
@@ -307,21 +292,47 @@ def get_pdf_download_link(df, filename="report.pdf"):
                                topMargin=72, bottomMargin=72)
         
         styles = getSampleStyleSheet()
-        font_name = 'UnicodeFont' if font_registered else 'Helvetica'
         
-        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=20,
-                                   textColor=colors.HexColor('#f5576c'), spaceAfter=20, alignment=1, fontName=font_name)
-        heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14,
-                                     textColor=colors.HexColor('#4facfe'), spaceAfter=10, spaceBefore=15, fontName=font_name)
-        normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, fontName=font_name)
+        title_style = ParagraphStyle(
+            'CustomTitle', 
+            parent=styles['Heading1'], 
+            fontSize=20,
+            textColor=colors.HexColor('#f5576c'), 
+            spaceAfter=20, 
+            alignment=1, 
+            fontName=font_name
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading', 
+            parent=styles['Heading2'], 
+            fontSize=14,
+            textColor=colors.HexColor('#4facfe'), 
+            spaceAfter=10, 
+            spaceBefore=15, 
+            fontName=font_name
+        )
+        
+        normal_style = ParagraphStyle(
+            'Normal', 
+            parent=styles['Normal'], 
+            fontSize=10, 
+            fontName=font_name
+        )
         
         story = []
-        story.append(Paragraph(fix_text("🎙️ Подкаст Аналитика - Отчет"), title_style))
-        story.append(Paragraph(fix_text(f"📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"), normal_style))
-        story.append(Paragraph(fix_text(f"📊 Период: {df['Дата прослушивания'].min().date()} — {df['Дата прослушивания'].max().date()}"), normal_style))
+        
+        # Заголовок
+        story.append(Paragraph("🎙️ Подкаст Аналитика - Отчет", title_style))
+        story.append(Paragraph(f"📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
+        story.append(Paragraph(
+            f"📊 Период: {df['Дата прослушивания'].min().date()} — {df['Дата прослушивания'].max().date()}", 
+            normal_style
+        ))
         story.append(Spacer(1, 15))
         
-        story.append(Paragraph(fix_text("📊 Общая статистика"), heading_style))
+        # Общая статистика
+        story.append(Paragraph("📊 Общая статистика", heading_style))
         total_starts = df['Старты'].sum()
         total_streams = df['Стримы'].sum()
         conversion = (total_streams / total_starts * 100) if total_starts > 0 else 0
@@ -329,20 +340,22 @@ def get_pdf_download_link(df, filename="report.pdf"):
         avg_completion = df['Дослушиваемость'].mean() * 100
         unique_episodes = df['Выпуск'].nunique()
         
-        stats_data = [[fix_text('📌 Метрика'), fix_text('📊 Значение')],
-                     [fix_text('Всего стартов'), f'{total_starts:,}'],
-                     [fix_text('Всего стримов'), f'{total_streams:,}'],
-                     [fix_text('Конверсия'), f'{conversion:.1f}%'],
-                     [fix_text('Средний % прослушивания'), f'{avg_listen:.1f}%'],
-                     [fix_text('Средняя дослушиваемость'), f'{avg_completion:.1f}%'],
-                     [fix_text('Количество выпусков'), f'{unique_episodes}']]
+        stats_data = [
+            ['📌 Метрика', '📊 Значение'],
+            ['Всего стартов', f'{total_starts:,}'],
+            ['Всего стримов', f'{total_streams:,}'],
+            ['Конверсия', f'{conversion:.1f}%'],
+            ['Средний % прослушивания', f'{avg_listen:.1f}%'],
+            ['Средняя дослушиваемость', f'{avg_completion:.1f}%'],
+            ['Количество выпусков', f'{unique_episodes}']
+        ]
         
         stats_table = Table(stats_data, colWidths=[3*inch, 2.5*inch])
         stats_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#4facfe')),
             ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
             ('ALIGN', (0, 0), (1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (1, 0), font_name),
+            ('FONTNAME', (0, 0), (1, -1), font_name),
             ('FONTSIZE', (0, 0), (1, 0), 11),
             ('BOTTOMPADDING', (0, 0), (1, 0), 10),
             ('BACKGROUND', (0, 1), (1, -1), colors.HexColor('#f8f9fa')),
@@ -353,22 +366,29 @@ def get_pdf_download_link(df, filename="report.pdf"):
         story.append(stats_table)
         story.append(Spacer(1, 15))
         
-        story.append(Paragraph(fix_text("🏆 Топ выпусков по популярности"), heading_style))
+        # Топ выпусков
+        story.append(Paragraph("🏆 Топ выпусков по популярности", heading_style))
         top_episodes = df.groupby(['Выпуск', 'Короткое название']).agg({
             'Старты': 'sum', 'Стримы': 'sum', 'Дослушиваемость': 'mean'
         }).reset_index().sort_values('Старты', ascending=False).head(10)
         
-        top_data = [[fix_text('#'), fix_text('Название'), fix_text('Старты'), fix_text('Стримы'), fix_text('Дослуш.')]]
+        top_data = [['#', 'Название', 'Старты', 'Стримы', 'Дослуш.']]
         for i, (_, row) in enumerate(top_episodes.iterrows()):
             name = row['Короткое название'][:40] if len(row['Короткое название']) > 40 else row['Короткое название']
-            top_data.append([str(i+1), fix_text(name), f"{row['Старты']:,}", f"{row['Стримы']:,}", f"{row['Дослушиваемость']*100:.1f}%"])
+            top_data.append([
+                str(i+1), 
+                name, 
+                f"{row['Старты']:,}", 
+                f"{row['Стримы']:,}", 
+                f"{row['Дослушиваемость']*100:.1f}%"
+            ])
         
         top_table = Table(top_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
         top_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5576c')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.grey),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
@@ -377,22 +397,29 @@ def get_pdf_download_link(df, filename="report.pdf"):
         story.append(top_table)
         story.append(Spacer(1, 15))
         
-        story.append(Paragraph(fix_text("🏆 Зал славы (лучшая дослушиваемость)"), heading_style))
+        # Зал славы
+        story.append(Paragraph("🏆 Зал славы (лучшая дослушиваемость)", heading_style))
         hall_of_fame = df.groupby(['Выпуск', 'Короткое название']).agg({
             'Дослушиваемость': 'mean', 'Старты': 'sum', 'Средний_прослушивания': 'mean'
         }).reset_index().sort_values('Дослушиваемость', ascending=False).head(10)
         
-        hall_data = [[fix_text('#'), fix_text('Название'), fix_text('Дослуш.'), fix_text('Старты'), fix_text('Средний %')]]
+        hall_data = [['#', 'Название', 'Дослуш.', 'Старты', 'Средний %']]
         for i, (_, row) in enumerate(hall_of_fame.iterrows()):
             name = row['Короткое название'][:40] if len(row['Короткое название']) > 40 else row['Короткое название']
-            hall_data.append([str(i+1), fix_text(name), f"{row['Дослушиваемость']*100:.1f}%", f"{row['Старты']:,}", f"{row['Средний_прослушивания']*100:.1f}%"])
+            hall_data.append([
+                str(i+1), 
+                name, 
+                f"{row['Дослушиваемость']*100:.1f}%", 
+                f"{row['Старты']:,}", 
+                f"{row['Средний_прослушивания']*100:.1f}%"
+            ])
         
         hall_table = Table(hall_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
         hall_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#43e97b')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.grey),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
@@ -401,22 +428,29 @@ def get_pdf_download_link(df, filename="report.pdf"):
         story.append(hall_table)
         story.append(Spacer(1, 15))
         
-        story.append(Paragraph(fix_text("⚠️ Зона риска (худшая дослушиваемость)"), heading_style))
+        # Зона риска
+        story.append(Paragraph("⚠️ Зона риска (худшая дослушиваемость)", heading_style))
         danger_zone = df.groupby(['Выпуск', 'Короткое название']).agg({
             'Дослушиваемость': 'mean', 'Старты': 'sum', 'Средний_прослушивания': 'mean'
         }).reset_index().sort_values('Дослушиваемость', ascending=True).head(10)
         
-        danger_data = [[fix_text('#'), fix_text('Название'), fix_text('Дослуш.'), fix_text('Старты'), fix_text('Средний %')]]
+        danger_data = [['#', 'Название', 'Дослуш.', 'Старты', 'Средний %']]
         for i, (_, row) in enumerate(danger_zone.iterrows()):
             name = row['Короткое название'][:40] if len(row['Короткое название']) > 40 else row['Короткое название']
-            danger_data.append([str(i+1), fix_text(name), f"{row['Дослушиваемость']*100:.1f}%", f"{row['Старты']:,}", f"{row['Средний_прослушивания']*100:.1f}%"])
+            danger_data.append([
+                str(i+1), 
+                name, 
+                f"{row['Дослушиваемость']*100:.1f}%", 
+                f"{row['Старты']:,}", 
+                f"{row['Средний_прослушивания']*100:.1f}%"
+            ])
         
         danger_table = Table(danger_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
         danger_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5576c')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.grey),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
@@ -425,8 +459,16 @@ def get_pdf_download_link(df, filename="report.pdf"):
         story.append(danger_table)
         story.append(Spacer(1, 15))
         
-        footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey, alignment=1, fontName=font_name)
-        story.append(Paragraph(fix_text("🎙️ Подкаст Аналитика Pro • Сгенерировано автоматически"), footer_style))
+        # Подвал
+        footer_style = ParagraphStyle(
+            'Footer', 
+            parent=styles['Normal'], 
+            fontSize=8, 
+            textColor=colors.grey, 
+            alignment=1, 
+            fontName=font_name
+        )
+        story.append(Paragraph("🎙️ Подкаст Аналитика Pro • Сгенерировано автоматически", footer_style))
         
         doc.build(story)
         
@@ -437,7 +479,9 @@ def get_pdf_download_link(df, filename="report.pdf"):
         b64 = base64.b64encode(pdf_data).decode()
         href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="display: inline-block; background: linear-gradient(135deg, #4facfe, #f093fb); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1rem;">📥 Скачать отчет (PDF)</a>'
         return href
-    except:
+        
+    except Exception as e:
+        # В случае ошибки — отдаем CSV
         return get_csv_download_link(df)
 
 def get_csv_download_link(df, filename="report.csv"):
