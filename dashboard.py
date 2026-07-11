@@ -561,8 +561,14 @@ IMPORTANT_DATES = {
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================
 def safe_div(a, b, default=0):
-    """Безопасное деление с защитой от деления на ноль."""
-    return a / b if b != 0 else default
+    """Безопасное деление для чисел и Series."""
+    if isinstance(b, (int, float)):
+        return a / b if b != 0 else default
+    # Для pandas Series
+    result = a / b
+    result = result.fillna(default)
+    result = result.replace([np.inf, -np.inf], default)
+    return result
 
 def format_number(n):
     """Форматирует число с разделителями тысяч."""
