@@ -1365,7 +1365,7 @@ if page == "📊 Общая аналитика":
         fig_heat.update_layout(showlegend=False, xaxis=dict(tickfont=dict(size=11)), yaxis=dict(title='Часы'))
         st.plotly_chart(apply_plot_theme(fig_heat, 320), use_container_width=True)
 
-    # ===== МАТРИЦА КАЧЕСТВА =====
+        # ===== МАТРИЦА КАЧЕСТВА =====
     section_title("🎯 Матрица качества и популярности")
     show_hint("💡", "Как читать", "Каждый кружок — выпуск. Чем правее — тем популярнее. Чем выше — тем качественнее.")
 
@@ -1397,6 +1397,7 @@ if page == "📊 Общая аналитика":
             ),
             hovertemplate='<b>%{text}</b><br>Старты: %{x:,.0f}<br>Дослушиваемость: %{y:.1f}%<br>RSI: %{marker.color:.1f}<extra></extra>'
         ))
+        
         median_starts = heatmap_data['Старты'].median()
         median_completion = heatmap_data['Дослушиваемость'].median() * 100
         fig_heatmap.add_hline(y=median_completion, line_dash="dash", line_color="rgba(255,255,255,0.08)", line_width=1)
@@ -1404,6 +1405,8 @@ if page == "📊 Общая аналитика":
 
         max_x = heatmap_data['Старты'].max()
         max_y = heatmap_data['Дослушиваемость'].max() * 100
+        
+        # ИСПРАВЛЕННЫЙ БЛОК — УБРАЛ weight
         annotations = [
             (max_x * 0.85, max_y * 0.85, "⭐ ХИТЫ", "#22C55E"),
             (max_x * 0.15, max_y * 0.85, "💎 НИШЕВЫЕ", "#7C3AED"),
@@ -1411,8 +1414,14 @@ if page == "📊 Общая аналитика":
             (max_x * 0.15, max_y * 0.15, "❌ ПРОВАЛЫ", "#EF4444"),
         ]
         for x, y, text, color in annotations:
-            fig_heatmap.add_annotation(x=x, y=y, text=text, showarrow=False,
-                font=dict(color=color, size=14, weight=700), opacity=0.3)
+            fig_heatmap.add_annotation(
+                x=x, 
+                y=y, 
+                text=text, 
+                showarrow=False,
+                font=dict(color=color, size=14),  # УБРАЛ weight
+                opacity=0.3
+            )
 
         fig_heatmap.update_layout(
             xaxis=dict(title='Старты (популярность)', type='log'),
