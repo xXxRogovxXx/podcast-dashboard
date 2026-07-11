@@ -645,18 +645,18 @@ def important_dates_legend():
     """Показывает легенду важных дат."""
     if not IMPORTANT_DATES:
         return
-    html = '<div class="dates-legend"><span class="dates-legend-label">📅 Важные даты</span>'
+    
+    html = '<div class="dates-legend">'
+    html += '<span class="dates-legend-label">📅 Важные даты</span>'
+    
     for date_str, props in IMPORTANT_DATES.items():
         date_obj = pd.to_datetime(date_str)
-        html += f'''
-        <span class="date-dot">
-            <span class="dot" style="color:{props['color']};">●</span>
-            <span class="label">{props['label']}</span>
-            <span class="date">{date_obj.strftime("%d.%m.%Y")}</span>
-        </span>
-        '''
+        # УБЕРИ ВСЕ ПЕРЕНОСЫ СТРОК ВНУТРИ СПАНА!
+        html += f'<span class="date-dot"><span class="dot" style="color:{props["color"]};">●</span><span class="label">{props["label"]}</span><span class="date">{date_obj.strftime("%d.%m.%Y")}</span></span>'
+    
     html += '</div>'
-    # ВОТ ЗДЕСЬ БЫЛО unsafe_allow_html=True — ДОБАВЬТЕ ЕГО!
+    
+    # ОБЯЗАТЕЛЬНО unsafe_allow_html=True
     st.markdown(html, unsafe_allow_html=True)
 
 def add_important_dates_to_fig(fig):
