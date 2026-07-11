@@ -656,7 +656,7 @@ def important_dates_legend():
         </span>
         '''
     html += '</div>'
-    # ДОБАВЛЯЕМ unsafe_allow_html=True
+    # ВОТ ЗДЕСЬ БЫЛО unsafe_allow_html=True — ДОБАВЬТЕ ЕГО!
     st.markdown(html, unsafe_allow_html=True)
 
 def add_important_dates_to_fig(fig):
