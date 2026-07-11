@@ -689,7 +689,7 @@ PLOT_THEME = {
     "template": "plotly_dark",
     "plot_bgcolor": "rgba(0,0,0,0)",
     "paper_bgcolor": "rgba(0,0,0,0)",
-    "font": {"color": "#A1A1AA", "family": "-apple-system, BlinkMacSystemFont, sans-serif"},
+    "font": {"color": "#FAFAFA", "family": "-apple-system, BlinkMacSystemFont, sans-serif"},
     "xaxis": {
         "gridcolor": "rgba(255,255,255,0.04)",
         "titlefont": {"color": "#71717A"},
@@ -701,7 +701,7 @@ PLOT_THEME = {
         "tickfont": {"color": "#71717A"},
     },
     "legend": {
-        "font": {"color": "#A1A1AA"},
+        "font": {"color": "#FAFAFA"},
         "orientation": "h",
         "yanchor": "bottom",
         "y": 1.02,
