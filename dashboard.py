@@ -224,6 +224,8 @@ st.markdown("""
         border-radius: 15px;
         font-size: 0.8rem;
     }
+    .chart-subtitle-listeners { color: #f6d365 !important; font-size: 1.1rem !important; font-weight: 700 !important; padding: 0.5rem 0 !important; margin-bottom: 0.5rem !important; text-shadow: 0 0 20px rgba(246, 211, 101, 0.4) !important; letter-spacing: 1px !important; }
+    .chart-subtitle-hours { color: #a8edea !important; font-size: 1.1rem !important; font-weight: 700 !important; padding: 0.5rem 0 !important; margin-bottom: 0.5rem !important; text-shadow: 0 0 20px rgba(168, 237, 234, 0.4) !important; letter-spacing: 1px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -340,6 +342,12 @@ def get_pdf_download_link(df, filename="report.pdf"):
         avg_completion = df['Дослушиваемость'].mean() * 100
         unique_episodes = df['Выпуск'].nunique()
         
+        # Новые метрики
+        total_listeners = df['Слушатели'].sum() if 'Слушатели' in df.columns else 0
+        total_hours = df['Часы'].sum() if 'Часы' in df.columns else 0
+        hours_per_listener = (total_hours / total_listeners) if total_listeners > 0 else 0
+        starts_per_listener = (total_starts / total_listeners) if total_listeners > 0 else 0
+        
         stats_data = [
             ['📌 Метрика', '📊 Значение'],
             ['Всего стартов', f'{total_starts:,}'],
@@ -347,7 +355,9 @@ def get_pdf_download_link(df, filename="report.pdf"):
             ['Конверсия', f'{conversion:.1f}%'],
             ['Средний % прослушивания', f'{avg_listen:.1f}%'],
             ['Средняя дослушиваемость', f'{avg_completion:.1f}%'],
-            ['Количество выпусков', f'{unique_episodes}']
+            ['Количество выпусков', f'{unique_episodes}'],
+            ['👥 Всего слушателей', f'{total_listeners:,}'],
+            ['⏱ Всего часов', f'{total_hours:,.1f}'],
         ]
         
         stats_table = Table(stats_data, colWidths=[3*inch, 2.5*inch])
@@ -366,36 +376,69 @@ def get_pdf_download_link(df, filename="report.pdf"):
         story.append(stats_table)
         story.append(Spacer(1, 15))
         
-        # Топ выпусков
-        story.append(Paragraph("🏆 Топ выпусков по популярности", heading_style))
-        top_episodes = df.groupby(['Выпуск', 'Короткое название']).agg({
-            'Старты': 'sum', 'Стримы': 'sum', 'Дослушиваемость': 'mean'
-        }).reset_index().sort_values('Старты', ascending=False).head(10)
+        # Топ выпусков по часам
+        story.append(Paragraph("🏆 Топ выпусков по часам прослушивания", heading_style))
+        if 'Слушатели' in df.columns and 'Часы' in df.columns:
+            top_hours = df.groupby(['Выпуск', 'Короткое название']).agg({
+                'Часы': 'sum',
+                'Слушатели': 'sum'
+            }).reset_index().sort_values('Часы', ascending=False).head(10)
+            
+            hours_data = [['#', 'Название', 'Часы', 'Слушатели']]
+            for i, (_, row) in enumerate(top_hours.iterrows()):
+                name = row['Короткое название'][:40] if len(row['Короткое название']) > 40 else row['Короткое название']
+                hours_data.append([
+                    str(i+1), 
+                    name, 
+                    f"{row['Часы']:,.1f}", 
+                    f"{row['Слушатели']:,}"
+                ])
+            
+            hours_table = Table(hours_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch])
+            hours_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f6d365')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(hours_table)
+            story.append(Spacer(1, 15))
         
-        top_data = [['#', 'Название', 'Старты', 'Стримы', 'Дослуш.']]
-        for i, (_, row) in enumerate(top_episodes.iterrows()):
-            name = row['Короткое название'][:40] if len(row['Короткое название']) > 40 else row['Короткое название']
-            top_data.append([
-                str(i+1), 
-                name, 
-                f"{row['Старты']:,}", 
-                f"{row['Стримы']:,}", 
-                f"{row['Дослушиваемость']*100:.1f}%"
-            ])
-        
-        top_table = Table(top_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch, 1*inch])
-        top_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5576c')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), font_name),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
-        story.append(top_table)
-        story.append(Spacer(1, 15))
+        # Топ выпусков по слушателям
+        story.append(Paragraph("🏆 Топ выпусков по слушателям", heading_style))
+        if 'Слушатели' in df.columns:
+            top_listeners = df.groupby(['Выпуск', 'Короткое название']).agg({
+                'Слушатели': 'sum',
+                'Часы': 'sum'
+            }).reset_index().sort_values('Слушатели', ascending=False).head(10)
+            
+            listeners_data = [['#', 'Название', 'Слушатели', 'Часы']]
+            for i, (_, row) in enumerate(top_listeners.iterrows()):
+                name = row['Короткое название'][:40] if len(row['Короткое название']) > 40 else row['Короткое название']
+                listeners_data.append([
+                    str(i+1), 
+                    name, 
+                    f"{row['Слушатели']:,}", 
+                    f"{row['Часы']:,.1f}"
+                ])
+            
+            listeners_table = Table(listeners_data, colWidths=[0.4*inch, 2.8*inch, 1*inch, 1*inch])
+            listeners_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#a8edea')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, -1), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            story.append(listeners_table)
+            story.append(Spacer(1, 15))
         
         # Зал славы
         story.append(Paragraph("🏆 Зал славы (лучшая дослушиваемость)", heading_style))
@@ -520,6 +563,17 @@ def load_data():
             df_total['Дослушиваемость'] = df_total['% дослушиваемости'].fillna(0)
         else:
             df_total['Дослушиваемость'] = 0
+            
+        # Новые колонки
+        if 'Слушатели' not in df_total.columns:
+            df_total['Слушатели'] = 0
+        else:
+            df_total['Слушатели'] = df_total['Слушатели'].fillna(0)
+            
+        if 'Часы' not in df_total.columns:
+            df_total['Часы'] = 0
+        else:
+            df_total['Часы'] = df_total['Часы'].fillna(0)
         
         return df_total, df_ref, short_names_dict
     except Exception as e:
@@ -540,6 +594,16 @@ if 'Дослушиваемость' not in df_merged.columns:
     df_merged['Дослушиваемость'] = 0
 else:
     df_merged['Дослушиваемость'] = df_merged['Дослушиваемость'].fillna(0)
+
+if 'Слушатели' not in df_merged.columns:
+    df_merged['Слушатели'] = 0
+else:
+    df_merged['Слушатели'] = df_merged['Слушатели'].fillna(0)
+
+if 'Часы' not in df_merged.columns:
+    df_merged['Часы'] = 0
+else:
+    df_merged['Часы'] = df_merged['Часы'].fillna(0)
 
 # ============================================
 # РАСЧЕТ RSI
@@ -623,11 +687,14 @@ def get_life_curve(episode_data, release_date):
     
     daily = episode_data.groupby('День от релиза').agg({
         'Стримы': 'sum',
-        'Старты': 'sum'
+        'Старты': 'sum',
+        'Слушатели': 'sum',
+        'Часы': 'sum'
     }).reset_index()
     
     daily['Стримы_накоп'] = daily['Стримы'].cumsum()
     daily['Старты_накоп'] = daily['Старты'].cumsum()
+    daily['Часы_накоп'] = daily['Часы'].cumsum()
     
     total_streams = daily['Стримы'].sum()
     if total_streams > 0:
@@ -733,8 +800,15 @@ if page == "📊 Общая аналитика":
     unique_episodes = filtered_data['Выпуск'].nunique()
     avg_rsi = filtered_data['RSI'].mean()
     avg_listen_all = filtered_data['Средний_прослушивания'].mean()
+    
+    # НОВЫЕ МЕТРИКИ
+    total_listeners = filtered_data['Слушатели'].sum()
+    total_hours = filtered_data['Часы'].sum()
+    hours_per_listener = (total_hours / total_listeners) if total_listeners > 0 else 0
+    starts_per_listener = (total_starts / total_listeners) if total_listeners > 0 else 0
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # ===== НОВЫЕ KPI (10 карточек вместо 6) =====
+    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns(10)
 
     with col1:
         st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎬</div><div class="metric-value">{total_starts:,}</div><div class="metric-label">Всего стартов</div></div>""", unsafe_allow_html=True)
@@ -748,9 +822,18 @@ if page == "📊 Общая аналитика":
         st.markdown(f"""<div class="metric-card"><div class="metric-icon">⭐</div><div class="metric-value">{avg_rsi:.1f}</div><div class="metric-label">Средний RSI</div></div>""", unsafe_allow_html=True)
     with col6:
         st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎯</div><div class="metric-value">{avg_listen_all:.1f}%</div><div class="metric-label">Средний % прослушивания</div></div>""", unsafe_allow_html=True)
+    with col7:
+        st.markdown(f"""<div class="metric-card"><div class="metric-icon">👥</div><div class="metric-value">{total_listeners:,.0f}</div><div class="metric-label">Слушатели</div></div>""", unsafe_allow_html=True)
+    with col8:
+        st.markdown(f"""<div class="metric-card"><div class="metric-icon">⏱</div><div class="metric-value">{total_hours:,.1f}</div><div class="metric-label">Часы</div></div>""", unsafe_allow_html=True)
+    with col9:
+        st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎧</div><div class="metric-value">{hours_per_listener:.2f}</div><div class="metric-label">Часы на слушателя</div></div>""", unsafe_allow_html=True)
+    with col10:
+        st.markdown(f"""<div class="metric-card"><div class="metric-icon">🔁</div><div class="metric-value">{starts_per_listener:.2f}</div><div class="metric-label">Старты на слушателя</div></div>""", unsafe_allow_html=True)
 
     st.markdown("---")
 
+    # ===== ОБНОВЛЕННЫЙ ИНФО БЛОК =====
     st.markdown("""
     <div class="info-block">
         <div class="info-title">📖 Что означают метрики</div>
@@ -758,6 +841,9 @@ if page == "📊 Общая аналитика":
             <div><div style="color: #4facfe; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🎬 Старты</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Количество запусков выпуска</div></div>
             <div><div style="color: #f5576c; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🎧 Стримы</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Прослушивания > 2 минут</div></div>
             <div><div style="color: #43e97b; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">📈 Конверсия</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Стримы / Старты × 100%</div></div>
+            <div><div style="color: #f6d365; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">👥 Слушатели</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Уникальные пользователи</div></div>
+            <div><div style="color: #a8edea; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">⏱ Часы</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Суммарное время прослушивания</div></div>
+            <div><div style="color: #f093fb; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🎧 Часы на слушателя</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Среднее количество часов на одного пользователя</div></div>
             <div style="grid-column: span 3; margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
                 <div style="color: #f093fb; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">⭐ RSI — Индекс успешности выпуска</div>
                 <div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;"><strong style="color: #f5576c;">Стримы</strong> × (<strong style="color: #43e97b;">Конверсия</strong> + 1) × <strong style="color: #4facfe;">Старты<sup>0.1</sup></strong></div>
@@ -767,6 +853,9 @@ if page == "📊 Общая аналитика":
             </div>
             <div style="grid-column: span 3; margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
                 <div style="color: #43e97b; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🏁 % дослушиваемости</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Доля пользователей, прослушавших 90+% выпуска</div>
+            </div>
+            <div style="grid-column: span 3; margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="color: #f093fb; font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem;">🔁 Старты на слушателя</div><div style="color: rgba(255,255,255,0.7); font-size: 0.85rem;">Среднее число запусков одним пользователем</div>
             </div>
         </div>
     </div>
@@ -789,6 +878,75 @@ if page == "📊 Общая аналитика":
     
     fig1.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=500, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='Дата', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Количество', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis2=dict(title='Конверсия (%)', titlefont=dict(color='#43e97b', size=13), tickfont=dict(color='#43e97b', size=11), overlaying='y', side='right', showgrid=False))
     st.plotly_chart(fig1, use_container_width=True)
+
+    # ===== НОВЫЙ ГРАФИК 1: ДИНАМИКА АУДИТОРИИ =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">👥 Динамика аудитории</div>', unsafe_allow_html=True)
+    show_hint("💡", "Как читать:", "Желтая линия — уникальные слушатели. Бирюзовая — часы прослушивания. Смотрите на соотношение: рост часов при стабильных слушателях = увеличение вовлеченности.")
+
+    daily_audience = filtered_data.groupby('Дата прослушивания').agg({
+        'Слушатели': 'sum',
+        'Часы': 'sum'
+    }).reset_index()
+
+    fig_audience = make_subplots(specs=[[{"secondary_y": True}]])
+    fig_audience.add_trace(go.Scatter(x=daily_audience['Дата прослушивания'], y=daily_audience['Слушатели'], name='Слушатели', line=dict(color='#f6d365', width=3), fill='tozeroy', fillcolor='rgba(246, 211, 101, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#f6d365', width=2))))
+    fig_audience.add_trace(go.Scatter(x=daily_audience['Дата прослушивания'], y=daily_audience['Часы'], name='Часы', line=dict(color='#a8edea', width=3), fill='tozeroy', fillcolor='rgba(168, 237, 234, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#a8edea', width=2))), secondary_y=True)
+    
+    fig_audience = add_important_dates_to_fig(fig_audience)
+    
+    fig_audience.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='Дата', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Слушатели', titlefont=dict(color='#f6d365', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis2=dict(title='Часы', titlefont=dict(color='#a8edea', size=13), tickfont=dict(color='#a8edea', size=11), overlaying='y', side='right', showgrid=False))
+    st.plotly_chart(fig_audience, use_container_width=True)
+
+    # ===== НОВЫЙ ГРАФИК 2: СРЕДНИЕ ЧАСЫ НА СЛУШАТЕЛЯ ПО ДАТАМ =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">🎧 Средние часы на слушателя по дням</div>', unsafe_allow_html=True)
+    show_hint("💡", "Как читать:", "Показывает, сколько часов в среднем слушает один пользователь в день. Рост = повышение вовлеченности.")
+
+    daily_hours_per_listener = filtered_data.groupby('Дата прослушивания').apply(
+        lambda x: x['Часы'].sum() / x['Слушатели'].sum() if x['Слушатели'].sum() > 0 else 0
+    ).reset_index(name='Часы_на_слушателя')
+
+    fig_hpl = go.Figure()
+    fig_hpl.add_trace(go.Scatter(x=daily_hours_per_listener['Дата прослушивания'], y=daily_hours_per_listener['Часы_на_слушателя'], name='Часы на слушателя', line=dict(color='#f093fb', width=3), fill='tozeroy', fillcolor='rgba(240, 147, 251, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#f093fb', width=2))))
+    
+    fig_hpl = add_important_dates_to_fig(fig_hpl)
+    
+    fig_hpl.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='Дата', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Часы на слушателя', titlefont=dict(color='#f093fb', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'))
+    st.plotly_chart(fig_hpl, use_container_width=True)
+
+    # ===== НОВЫЙ ГРАФИК 3: ТЕПЛОВАЯ КАРТА ПО ДНЯМ НЕДЕЛИ =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">📅 Тепловая карта часов прослушивания по дням недели</div>', unsafe_allow_html=True)
+    show_hint("💡", "Как читать:", "Чем темнее цвет — тем больше часов слушают в этот день. Помогает определить лучшие дни для релизов.")
+
+    filtered_data['День недели'] = filtered_data['Дата прослушивания'].dt.day_name()
+    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    weekday_labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+    
+    # Агрегируем часы по дням недели
+    weekday_hours = filtered_data.groupby('День недели')['Часы'].sum().reindex(weekday_order).reset_index()
+    weekday_hours['День'] = weekday_labels
+    weekday_hours['Часы_норм'] = (weekday_hours['Часы'] / weekday_hours['Часы'].max() * 100).fillna(0)
+
+    fig_heatmap_week = go.Figure()
+    fig_heatmap_week.add_trace(go.Bar(
+        x=weekday_hours['День'], 
+        y=weekday_hours['Часы'],
+        marker=dict(
+            color=weekday_hours['Часы_норм'],
+            colorscale='Viridis',
+            showscale=True,
+            colorbar=dict(title='% от макс', titlefont=dict(color='white'), tickfont=dict(color='white'))
+        ),
+        text=weekday_hours['Часы'].apply(lambda x: f'{x:.1f}'),
+        textposition='outside',
+        textfont=dict(color='white', size=11),
+        hovertemplate='<b>%{x}</b><br>Часы: %{y:.1f}<extra></extra>'
+    ))
+    
+    fig_heatmap_week.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=350, xaxis=dict(title='День недели', titlefont=dict(color='white', size=12), tickfont=dict(color='white', size=11)), yaxis=dict(title='Часы прослушивания', titlefont=dict(color='white', size=12), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), showlegend=False)
+    st.plotly_chart(fig_heatmap_week, use_container_width=True)
 
     # ===== МАТРИЦА =====
     st.markdown("---")
@@ -832,6 +990,177 @@ if page == "📊 Общая аналитика":
         st.plotly_chart(fig_heatmap, use_container_width=True)
     else:
         st.info("ℹ️ Недостаточно данных для построения матрицы (нужно минимум 10 стартов на выпуск)")
+
+    # ===== НОВЫЙ SCATTER PLOT: СЛУШАТЕЛИ vs ЧАСЫ =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">📊 Аудитория: слушатели vs часы</div>', unsafe_allow_html=True)
+    show_hint("💡", "Как читать:", "Каждый кружок — выпуск. Размер = дослушиваемость. Цвет = RSI. Чем правее и выше — тем больше аудитория и глубже вовлеченность.")
+
+    scatter_data = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Слушатели': 'sum',
+        'Часы': 'sum',
+        'Дослушиваемость': 'mean',
+        'RSI': 'mean'
+    }).reset_index()
+    scatter_data = scatter_data[scatter_data['Слушатели'] > 0]
+
+    if not scatter_data.empty:
+        fig_scatter = go.Figure()
+        fig_scatter.add_trace(go.Scatter(
+            x=scatter_data['Слушатели'], 
+            y=scatter_data['Часы'],
+            mode='markers+text', 
+            text=scatter_data['Короткое название'], 
+            textposition='top center',
+            textfont=dict(color='white', size=9),
+            marker=dict(
+                size=scatter_data['Дослушиваемость'] * 30 + 8,
+                color=scatter_data['RSI'], 
+                colorscale='Viridis', 
+                showscale=True,
+                colorbar=dict(title='RSI', titlefont=dict(color='white'), tickfont=dict(color='white')),
+                line=dict(color='white', width=1), 
+                sizemode='area',
+                sizeref=2.*max(scatter_data['Дослушиваемость'] * 30 + 8)/(40.**2), 
+                sizemin=4
+            ),
+            hovertemplate='<b>%{text}</b><br>Слушатели: %{x:,.0f}<br>Часы: %{y:.1f}<br>Дослушиваемость: %{marker.size:.1f}%<br>RSI: %{marker.color:.1f}<extra></extra>'
+        ))
+        
+        fig_scatter.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=500, hovermode='closest', xaxis=dict(title='Слушатели', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', type='log'), yaxis=dict(title='Часы', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'))
+        st.plotly_chart(fig_scatter, use_container_width=True)
+    else:
+        st.info("ℹ️ Недостаточно данных для построения графика (нужно больше 0 слушателей)")
+
+    # ===== НОВЫЙ ТОП: ПО ЧАСАМ =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">⏱ Топ выпусков по часам прослушивания</div>', unsafe_allow_html=True)
+    show_hint("💡", "Что показывает:", "Какие выпуски собрали больше всего часов прослушивания. Учитывает и количество слушателей, и глубину прослушивания.")
+
+    top_hours = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Часы': 'sum',
+        'Слушатели': 'sum'
+    }).reset_index().sort_values('Часы', ascending=False).head(10)
+    top_hours['Часы_на_слушателя'] = top_hours.apply(lambda x: x['Часы'] / x['Слушатели'] if x['Слушатели'] > 0 else 0, axis=1)
+
+    if not top_hours.empty:
+        fig_top_hours = go.Figure()
+        fig_top_hours.add_trace(go.Bar(
+            x=top_hours['Часы'], 
+            y=top_hours['Короткое название'],
+            orientation='h',
+            marker=dict(color=top_hours['Часы'], colorscale='Viridis', showscale=True, colorbar=dict(title='Часы', titlefont=dict(color='white'), tickfont=dict(color='white'))),
+            text=top_hours['Часы'].apply(lambda x: f'{x:.1f} ч'),
+            textposition='outside',
+            textfont=dict(color='white', size=10),
+            hovertemplate='<b>%{y}</b><br>Часы: %{x:.1f}<br>Слушатели: %{customdata[0]:,}<br>Часы/слушателя: %{customdata[1]:.2f}<extra></extra>',
+            customdata=top_hours[['Слушатели', 'Часы_на_слушателя']].values
+        ))
+        fig_top_hours.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, xaxis=dict(title='Часы', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='', tickfont=dict(color='white', size=10)), showlegend=False, margin=dict(l=10, r=80, t=10, b=30))
+        st.plotly_chart(fig_top_hours, use_container_width=True)
+    else:
+        st.info("ℹ️ Нет данных по часам прослушивания")
+
+    # ===== НОВЫЙ ТОП: ПО СЛУШАТЕЛЯМ =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">👥 Топ выпусков по слушателям</div>', unsafe_allow_html=True)
+    show_hint("💡", "Что показывает:", "Какие выпуски собрали больше всего уникальных слушателей. Показывает охват аудитории.")
+
+    top_listeners = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Слушатели': 'sum',
+        'Часы': 'sum'
+    }).reset_index().sort_values('Слушатели', ascending=False).head(10)
+
+    if not top_listeners.empty:
+        fig_top_listeners = go.Figure()
+        fig_top_listeners.add_trace(go.Bar(
+            x=top_listeners['Слушатели'], 
+            y=top_listeners['Короткое название'],
+            orientation='h',
+            marker=dict(color=top_listeners['Слушатели'], colorscale='Plasma', showscale=True, colorbar=dict(title='Слушатели', titlefont=dict(color='white'), tickfont=dict(color='white'))),
+            text=top_listeners['Слушатели'].apply(lambda x: f'{x:,}'),
+            textposition='outside',
+            textfont=dict(color='white', size=10),
+            hovertemplate='<b>%{y}</b><br>Слушатели: %{x:,}<br>Часы: %{customdata[0]:.1f}<extra></extra>',
+            customdata=top_listeners[['Часы']].values
+        ))
+        fig_top_listeners.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, xaxis=dict(title='Слушатели', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='', tickfont=dict(color='white', size=10)), showlegend=False, margin=dict(l=10, r=80, t=10, b=30))
+        st.plotly_chart(fig_top_listeners, use_container_width=True)
+    else:
+        st.info("ℹ️ Нет данных по слушателям")
+
+    # ===== НОВЫЙ ТОП: ПО ЭФФЕКТИВНОСТИ (Часы / Слушатели) =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">🎯 Топ выпусков по эффективности (часы на слушателя)</div>', unsafe_allow_html=True)
+    show_hint("💡", "Что показывает:", "Сколько часов в среднем слушает один пользователь. Высокий показатель = глубокая вовлеченность.")
+
+    top_efficiency = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
+        'Часы': 'sum',
+        'Слушатели': 'sum'
+    }).reset_index()
+    top_efficiency['Эффективность'] = top_efficiency.apply(
+        lambda x: x['Часы'] / x['Слушатели'] if x['Слушатели'] > 0 else 0, axis=1
+    )
+    top_efficiency = top_efficiency.sort_values('Эффективность', ascending=False).head(10)
+
+    if not top_efficiency.empty and top_efficiency['Эффективность'].sum() > 0:
+        fig_top_eff = go.Figure()
+        fig_top_eff.add_trace(go.Bar(
+            x=top_efficiency['Эффективность'], 
+            y=top_efficiency['Короткое название'],
+            orientation='h',
+            marker=dict(color=top_efficiency['Эффективность'], colorscale='RdBu', showscale=True, colorbar=dict(title='Часов/слушателя', titlefont=dict(color='white'), tickfont=dict(color='white'))),
+            text=top_efficiency['Эффективность'].apply(lambda x: f'{x:.2f} ч'),
+            textposition='outside',
+            textfont=dict(color='white', size=10),
+            hovertemplate='<b>%{y}</b><br>Часов на слушателя: %{x:.2f}<br>Всего часов: %{customdata[0]:.1f}<br>Слушателей: %{customdata[1]:,}<extra></extra>',
+            customdata=top_efficiency[['Часы', 'Слушатели']].values
+        ))
+        fig_top_eff.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, xaxis=dict(title='Часов на слушателя', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='', tickfont=dict(color='white', size=10)), showlegend=False, margin=dict(l=10, r=80, t=10, b=30))
+        st.plotly_chart(fig_top_eff, use_container_width=True)
+    else:
+        st.info("ℹ️ Недостаточно данных для рейтинга эффективности")
+
+    # ===== НОВЫЙ ГРАФИК: PARETO (накопленная доля часов) =====
+    st.markdown("---")
+    st.markdown('<div class="section-title">📊 Pareto: накопленная доля часов по выпускам</div>', unsafe_allow_html=True)
+    show_hint("💡", "Как читать:", "Показывает, какие 20% выпусков дают 80% часов прослушивания. Красная линия — накопленный %.")
+
+    pareto_data = filtered_data.groupby('Выпуск')['Часы'].sum().sort_values(ascending=False).reset_index()
+    pareto_data['Накопленные_часы'] = pareto_data['Часы'].cumsum()
+    pareto_data['Накопленный_%'] = (pareto_data['Накопленные_часы'] / pareto_data['Часы'].sum() * 100).round(1)
+    pareto_data['Номер'] = range(1, len(pareto_data) + 1)
+
+    if len(pareto_data) > 1 and pareto_data['Часы'].sum() > 0:
+        fig_pareto = make_subplots(specs=[[{"secondary_y": True}]])
+        
+        # Столбцы
+        fig_pareto.add_trace(go.Bar(
+            x=pareto_data['Номер'], 
+            y=pareto_data['Часы'],
+            name='Часы по выпускам',
+            marker=dict(color='#4facfe', opacity=0.7),
+            hovertemplate='Выпуск #%{x}<br>Часы: %{y:.1f}<extra></extra>'
+        ))
+        
+        # Линия накопленного %
+        fig_pareto.add_trace(go.Scatter(
+            x=pareto_data['Номер'], 
+            y=pareto_data['Накопленный_%'],
+            name='Накопленный %',
+            line=dict(color='#f5576c', width=3),
+            mode='lines+markers',
+            marker=dict(size=8, color='white', line=dict(color='#f5576c', width=2)),
+            hovertemplate='Выпуск #%{x}<br>Накоплено: %{y:.1f}%<extra></extra>'
+        ), secondary_y=True)
+        
+        # Линия 80%
+        fig_pareto.add_hline(y=80, line_dash="dash", line_color="#43e97b", line_width=2, annotation_text="80%", annotation_font=dict(color="#43e97b", size=11), secondary_y=True)
+        
+        fig_pareto.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='Выпуски (по убыванию часов)', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Часы', titlefont=dict(color='#4facfe', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis2=dict(title='Накопленный %', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='#f5576c', size=11), overlaying='y', side='right', showgrid=False, range=[0, 105]))
+        st.plotly_chart(fig_pareto, use_container_width=True)
+    else:
+        st.info("ℹ️ Недостаточно данных для Pareto-анализа")
 
     # ===== ЗАЛ СЛАВЫ / ЗОНА РИСКА =====
     st.markdown("---")
@@ -952,13 +1281,20 @@ if page == "📊 Общая аналитика":
     episode_summary = filtered_data.groupby(['Выпуск', 'Короткое название']).agg({
         'Старты': 'sum', 'Стримы': 'sum', 'RSI': 'mean',
         'Дослушиваемость': 'mean', 'Средний_прослушивания': 'mean',
+        'Слушатели': 'sum', 'Часы': 'sum',
         'Формат': 'first', 'Жанр': 'first'
     }).reset_index()
     episode_summary['Конверсия'] = (episode_summary['Стримы'] / episode_summary['Старты'] * 100).fillna(0)
+    episode_summary['Часы_на_слушателя'] = episode_summary.apply(
+        lambda x: x['Часы'] / x['Слушатели'] if x['Слушатели'] > 0 else 0, axis=1
+    )
+    episode_summary['Старты_на_слушателя'] = episode_summary.apply(
+        lambda x: x['Старты'] / x['Слушатели'] if x['Слушатели'] > 0 else 0, axis=1
+    )
     episode_summary = episode_summary.sort_values('RSI', ascending=False)
 
-    display_df = episode_summary[['Короткое название', 'Старты', 'Стримы', 'Конверсия', 'Дослушиваемость', 'Средний_прослушивания', 'RSI', 'Формат', 'Жанр']].copy()
-    display_df.columns = ['Название', 'Старты', 'Стримы', 'Конверсия %', 'Дослушиваемость %', 'Средний %', 'RSI', 'Формат', 'Жанр']
+    display_df = episode_summary[['Короткое название', 'Старты', 'Стримы', 'Конверсия', 'Дослушиваемость', 'Средний_прослушивания', 'RSI', 'Слушатели', 'Часы', 'Часы_на_слушателя', 'Старты_на_слушателя', 'Формат', 'Жанр']].copy()
+    display_df.columns = ['Название', 'Старты', 'Стримы', 'Конверсия %', 'Дослушиваемость %', 'Средний %', 'RSI', 'Слушатели', 'Часы', 'Часы/слушателя', 'Старты/слушателя', 'Формат', 'Жанр']
     display_df['Дослушиваемость %'] = display_df['Дослушиваемость %'] * 100
     display_df['Средний %'] = display_df['Средний %'] * 100
 
@@ -1021,8 +1357,11 @@ elif page == "📋 Анализ выпуска":
             total_streams_ep = episode_data['Стримы'].sum()
             conv_ep = (total_streams_ep / total_starts_ep * 100) if total_starts_ep > 0 else 0
             rsi_ep = episode_data['RSI'].mean()
+            total_listeners_ep = episode_data['Слушатели'].sum()
+            total_hours_ep = episode_data['Часы'].sum()
+            hours_per_listener_ep = (total_hours_ep / total_listeners_ep) if total_listeners_ep > 0 else 0
             
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
             with col1:
                 st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎬</div><div class="metric-value">{total_starts_ep:,}</div><div class="metric-label">Всего стартов</div></div>""", unsafe_allow_html=True)
             with col2:
@@ -1031,6 +1370,10 @@ elif page == "📋 Анализ выпуска":
                 st.markdown(f"""<div class="metric-card"><div class="metric-icon">📈</div><div class="metric-value">{conv_ep:.1f}%</div><div class="metric-label">Конверсия</div></div>""", unsafe_allow_html=True)
             with col4:
                 st.markdown(f"""<div class="metric-card"><div class="metric-icon">⭐</div><div class="metric-value">{rsi_ep:.1f}</div><div class="metric-label">Средний RSI</div></div>""", unsafe_allow_html=True)
+            with col5:
+                st.markdown(f"""<div class="metric-card"><div class="metric-icon">👥</div><div class="metric-value">{total_listeners_ep:,.0f}</div><div class="metric-label">Слушатели</div></div>""", unsafe_allow_html=True)
+            with col6:
+                st.markdown(f"""<div class="metric-card"><div class="metric-icon">⏱</div><div class="metric-value">{total_hours_ep:,.1f}</div><div class="metric-label">Часы</div></div>""", unsafe_allow_html=True)
             
             st.markdown("---")
             st.markdown('<div class="section-title">ℹ️ Информация о выпуске</div>', unsafe_allow_html=True)
@@ -1061,7 +1404,7 @@ elif page == "📋 Анализ выпуска":
             elif period == "1 месяц":
                 compare_data = compare_data[(compare_data['Дата прослушивания'] >= release_date) & (compare_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=29))]
             
-            metrics = ['Старты', 'Стримы', 'RSI']
+            metrics = ['Старты', 'Стримы', 'RSI', 'Слушатели', 'Часы']
             comparison_data = []
             for metric in metrics:
                 pos = get_episode_position(episode_data, compare_data, metric)
@@ -1083,6 +1426,26 @@ elif page == "📋 Анализ выпуска":
             fig.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')))
             st.plotly_chart(fig, use_container_width=True)
 
+            # ===== НОВЫЙ ГРАФИК: ДИНАМИКА АУДИТОРИИ ДЛЯ ВЫПУСКА =====
+            st.markdown("---")
+            st.markdown('<div class="section-title">👥 Динамика аудитории выпуска</div>', unsafe_allow_html=True)
+            show_hint("💡", "Как читать:", "Желтая линия — слушатели. Бирюзовая — часы прослушивания. Смотрите на рост аудитории и глубину вовлеченности.")
+
+            daily_audience_ep = episode_data.groupby('Дата прослушивания').agg({
+                'Слушатели': 'sum',
+                'Часы': 'sum'
+            }).reset_index()
+
+            if not daily_audience_ep.empty:
+                fig_audience_ep = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_audience_ep.add_trace(go.Scatter(x=daily_audience_ep['Дата прослушивания'], y=daily_audience_ep['Слушатели'], name='Слушатели', line=dict(color='#f6d365', width=3), fill='tozeroy', fillcolor='rgba(246, 211, 101, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#f6d365', width=2))))
+                fig_audience_ep.add_trace(go.Scatter(x=daily_audience_ep['Дата прослушивания'], y=daily_audience_ep['Часы'], name='Часы', line=dict(color='#a8edea', width=3), fill='tozeroy', fillcolor='rgba(168, 237, 234, 0.15)', mode='lines+markers', marker=dict(size=6, color='white', line=dict(color='#a8edea', width=2))), secondary_y=True)
+                
+                fig_audience_ep = add_important_dates_to_fig(fig_audience_ep)
+                
+                fig_audience_ep.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')), xaxis=dict(title='Дата', titlefont=dict(color='white', size=12), tickfont=dict(color='white', size=10), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Слушатели', titlefont=dict(color='#f6d365', size=12), tickfont=dict(color='white', size=10), gridcolor='rgba(255,255,255,0.05)'), yaxis2=dict(title='Часы', titlefont=dict(color='#a8edea', size=12), tickfont=dict(color='#a8edea', size=10), overlaying='y', side='right', showgrid=False))
+                st.plotly_chart(fig_audience_ep, use_container_width=True)
+
             # ===== КРИВАЯ ЖИЗНИ =====
             st.markdown("---")
             st.markdown('<div class="section-title">📈 Кривая жизни выпуска</div>', unsafe_allow_html=True)
@@ -1094,6 +1457,7 @@ elif page == "📋 Анализ выпуска":
                 fig_life = go.Figure()
                 fig_life.add_trace(go.Scatter(x=life_curve['День от релиза'], y=life_curve['Стримы_норм'], name='Стримы (накоплено)', line=dict(color='#f5576c', width=4), mode='lines+markers', marker=dict(size=8, color='white', line=dict(color='#f5576c', width=2)), fill='tozeroy', fillcolor='rgba(245, 87, 108, 0.15)', hovertemplate='День %{x}: %{y:.1f}%<extra></extra>'))
                 fig_life.add_trace(go.Scatter(x=life_curve['День от релиза'], y=life_curve['Стримы_накоп'], name='Стримы (абс.)', line=dict(color='#f093fb', width=2, dash='dash'), mode='lines', yaxis='y2', hovertemplate='День %{x}: %{y:,.0f} стримов<extra></extra>'))
+                fig_life.add_trace(go.Scatter(x=life_curve['День от релиза'], y=life_curve['Часы_накоп'], name='Часы (накопленные)', line=dict(color='#a8edea', width=2, dash='dot'), mode='lines', yaxis='y2', hovertemplate='День %{x}: %{y:,.0f} часов<extra></extra>'))
                 
                 # Добавляем маркеры для 50% и 90%
                 try:
@@ -1108,7 +1472,7 @@ elif page == "📋 Анализ выпуска":
                 except:
                     pass
                 
-                fig_life.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, life_curve['День от релиза'].max() + 2]), yaxis=dict(title='% от всех стримов', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, 105]), yaxis2=dict(title='Стримы (абс.)', titlefont=dict(color='#f093fb', size=13), tickfont=dict(color='white', size=11), overlaying='y', side='right', showgrid=False))
+                fig_life.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=450, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white', size=12)), xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, life_curve['День от релиза'].max() + 2]), yaxis=dict(title='% от всех стримов', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)', range=[0, 105]), yaxis2=dict(title='Абсолютные значения', titlefont=dict(color='#f093fb', size=13), tickfont=dict(color='white', size=11), overlaying='y', side='right', showgrid=False))
                 
                 st.plotly_chart(fig_life, use_container_width=True)
                 
@@ -1219,28 +1583,39 @@ else:
             total_starts1 = data1['Старты'].sum(); total_streams1 = data1['Стримы'].sum()
             conv1 = (total_streams1 / total_starts1 * 100) if total_starts1 > 0 else 0
             rsi1 = data1['RSI'].mean()
+            listeners1 = data1['Слушатели'].sum()
+            hours1 = data1['Часы'].sum()
+            hours_per_listener1 = (hours1 / listeners1) if listeners1 > 0 else 0
+            
             total_starts2 = data2['Старты'].sum(); total_streams2 = data2['Стримы'].sum()
             conv2 = (total_streams2 / total_starts2 * 100) if total_starts2 > 0 else 0
             rsi2 = data2['RSI'].mean()
+            listeners2 = data2['Слушатели'].sum()
+            hours2 = data2['Часы'].sum()
+            hours_per_listener2 = (hours2 / listeners2) if listeners2 > 0 else 0
             
             st.markdown('<div class="section-title">📊 Сравнение метрик</div>', unsafe_allow_html=True)
             
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"""<div style="background: rgba(79, 172, 254, 0.1); border: 1px solid rgba(79, 172, 254, 0.3); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem;"><h3 style="color: #4facfe; text-align: center; margin-bottom: 1rem;">{ep1_short}</h3></div>""", unsafe_allow_html=True)
-                subcol1, subcol2, subcol3, subcol4 = st.columns(4)
+                subcol1, subcol2, subcol3, subcol4, subcol5, subcol6 = st.columns(6)
                 with subcol1: st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎬</div><div class="metric-value">{total_starts1:,}</div><div class="metric-label">Старты</div></div>""", unsafe_allow_html=True)
                 with subcol2: st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎧</div><div class="metric-value">{total_streams1:,}</div><div class="metric-label">Стримы</div></div>""", unsafe_allow_html=True)
                 with subcol3: st.markdown(f"""<div class="metric-card"><div class="metric-icon">📈</div><div class="metric-value">{conv1:.1f}%</div><div class="metric-label">Конверсия</div></div>""", unsafe_allow_html=True)
                 with subcol4: st.markdown(f"""<div class="metric-card"><div class="metric-icon">⭐</div><div class="metric-value">{rsi1:.1f}</div><div class="metric-label">RSI</div></div>""", unsafe_allow_html=True)
+                with subcol5: st.markdown(f"""<div class="metric-card"><div class="metric-icon">👥</div><div class="metric-value">{listeners1:,.0f}</div><div class="metric-label">Слушатели</div></div>""", unsafe_allow_html=True)
+                with subcol6: st.markdown(f"""<div class="metric-card"><div class="metric-icon">⏱</div><div class="metric-value">{hours1:,.1f}</div><div class="metric-label">Часы</div></div>""", unsafe_allow_html=True)
             
             with col2:
                 st.markdown(f"""<div style="background: rgba(245, 87, 108, 0.1); border: 1px solid rgba(245, 87, 108, 0.3); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem;"><h3 style="color: #f5576c; text-align: center; margin-bottom: 1rem;">{ep2_short}</h3></div>""", unsafe_allow_html=True)
-                subcol1, subcol2, subcol3, subcol4 = st.columns(4)
+                subcol1, subcol2, subcol3, subcol4, subcol5, subcol6 = st.columns(6)
                 with subcol1: st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎬</div><div class="metric-value">{total_starts2:,}</div><div class="metric-label">Старты</div></div>""", unsafe_allow_html=True)
                 with subcol2: st.markdown(f"""<div class="metric-card"><div class="metric-icon">🎧</div><div class="metric-value">{total_streams2:,}</div><div class="metric-label">Стримы</div></div>""", unsafe_allow_html=True)
                 with subcol3: st.markdown(f"""<div class="metric-card"><div class="metric-icon">📈</div><div class="metric-value">{conv2:.1f}%</div><div class="metric-label">Конверсия</div></div>""", unsafe_allow_html=True)
                 with subcol4: st.markdown(f"""<div class="metric-card"><div class="metric-icon">⭐</div><div class="metric-value">{rsi2:.1f}</div><div class="metric-label">RSI</div></div>""", unsafe_allow_html=True)
+                with subcol5: st.markdown(f"""<div class="metric-card"><div class="metric-icon">👥</div><div class="metric-value">{listeners2:,.0f}</div><div class="metric-label">Слушатели</div></div>""", unsafe_allow_html=True)
+                with subcol6: st.markdown(f"""<div class="metric-card"><div class="metric-icon">⏱</div><div class="metric-value">{hours2:,.1f}</div><div class="metric-label">Часы</div></div>""", unsafe_allow_html=True)
             
             st.markdown("---")
             st.markdown('<div class="section-title">📈 Динамика по дням от релиза</div>', unsafe_allow_html=True)
@@ -1248,8 +1623,8 @@ else:
             data1_copy = data1.copy(); data2_copy = data2.copy()
             data1_copy['День от релиза'] = (data1_copy['Дата прослушивания'] - release_date1).dt.days + 1
             data2_copy['День от релиза'] = (data2_copy['Дата прослушивания'] - release_date2).dt.days + 1
-            daily1 = data1_copy.groupby('День от релиза').agg({'Старты': 'sum', 'Стримы': 'sum'}).reset_index()
-            daily2 = data2_copy.groupby('День от релиза').agg({'Старты': 'sum', 'Стримы': 'sum'}).reset_index()
+            daily1 = data1_copy.groupby('День от релиза').agg({'Старты': 'sum', 'Стримы': 'sum', 'Слушатели': 'sum', 'Часы': 'sum'}).reset_index()
+            daily2 = data2_copy.groupby('День от релиза').agg({'Старты': 'sum', 'Стримы': 'sum', 'Слушатели': 'sum', 'Часы': 'sum'}).reset_index()
             
             st.markdown('<div class="chart-subtitle-starts">🎬 Сравнение стартов по дням</div>', unsafe_allow_html=True)
             fig_starts = go.Figure()
@@ -1264,6 +1639,20 @@ else:
             fig_streams.add_trace(go.Scatter(x=daily2['День от релиза'], y=daily2['Стримы'], name=f'{ep2_short}', line=dict(color='#f093fb', width=3), mode='lines+markers', marker=dict(size=8, color='white', line=dict(color='#f093fb', width=2)), fill='tozeroy', fillcolor='rgba(240, 147, 251, 0.1)'))
             fig_streams.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')), xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Стримы', titlefont=dict(color='#f5576c', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'))
             st.plotly_chart(fig_streams, use_container_width=True)
+
+            # ===== НОВЫЙ ГРАФИК: СРАВНЕНИЕ СЛУШАТЕЛЕЙ =====
+            st.markdown("---")
+            st.markdown('<div class="section-title">👥 Сравнение аудитории по дням</div>', unsafe_allow_html=True)
+            show_hint("💡", "Как читать:", "Желтая линия — слушатели. Бирюзовая — часы. Сравнивайте охват и вовлеченность.")
+
+            fig_audience_compare = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_audience_compare.add_trace(go.Scatter(x=daily1['День от релиза'], y=daily1['Слушатели'], name=f'{ep1_short} (слушатели)', line=dict(color='#f6d365', width=3), mode='lines+markers', marker=dict(size=7, color='white', line=dict(color='#f6d365', width=1.5)), fill='tozeroy', fillcolor='rgba(246, 211, 101, 0.1)'))
+            fig_audience_compare.add_trace(go.Scatter(x=daily2['День от релиза'], y=daily2['Слушатели'], name=f'{ep2_short} (слушатели)', line=dict(color='#fa709a', width=3), mode='lines+markers', marker=dict(size=7, color='white', line=dict(color='#fa709a', width=1.5)), fill='tozeroy', fillcolor='rgba(250, 112, 154, 0.1)'))
+            fig_audience_compare.add_trace(go.Scatter(x=daily1['День от релиза'], y=daily1['Часы'], name=f'{ep1_short} (часы)', line=dict(color='#a8edea', width=2, dash='dash'), mode='lines+markers', marker=dict(size=5, color='#a8edea')), secondary_y=True)
+            fig_audience_compare.add_trace(go.Scatter(x=daily2['День от релиза'], y=daily2['Часы'], name=f'{ep2_short} (часы)', line=dict(color='#f6d365', width=2, dash='dash'), mode='lines+markers', marker=dict(size=5, color='#f6d365')), secondary_y=True)
+            
+            fig_audience_compare.update_layout(template='plotly_dark', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified', legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1, font=dict(color='white')), xaxis=dict(title='День от релиза', titlefont=dict(color='white', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(title='Слушатели', titlefont=dict(color='#f6d365', size=13), tickfont=dict(color='white', size=11), gridcolor='rgba(255,255,255,0.05)'), yaxis2=dict(title='Часы', titlefont=dict(color='#a8edea', size=13), tickfont=dict(color='#a8edea', size=11), overlaying='y', side='right', showgrid=False))
+            st.plotly_chart(fig_audience_compare, use_container_width=True)
 
             # ===== СРАВНЕНИЕ КРИВЫХ ЖИЗНИ =====
             st.markdown("---")
