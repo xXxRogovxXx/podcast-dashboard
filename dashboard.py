@@ -593,12 +593,18 @@ def show_hint(emoji, title, text):
     """, unsafe_allow_html=True)
 
 def create_metric_row(metrics):
-    """
-    Создает ряд KPI-карточек.
-    metrics: список кортежей (icon, value, label, trend=None, trend_label=None)
-    """
-    cols = st.columns(len(metrics))
-    for col, (icon, value, label, trend, trend_label) in zip(cols, metrics):
+    """Создает ряд KPI-карточек."""
+    normalized = []
+    for m in metrics:
+        if len(m) == 3:
+            normalized.append((m[0], m[1], m[2], None, None))
+        elif len(m) == 4:
+            normalized.append((m[0], m[1], m[2], m[3], None))
+        else:
+            normalized.append(m)
+    
+    cols = st.columns(len(normalized))
+    for col, (icon, value, label, trend, trend_label) in zip(cols, normalized):
         trend_html = ""
         if trend is not None:
             cls = "up" if trend > 0 else "down"
@@ -644,6 +650,7 @@ def important_dates_legend():
         </span>
         '''
     html += '</div>'
+    # ДОБАВЛЯЕМ unsafe_allow_html=True
     st.markdown(html, unsafe_allow_html=True)
 
 def add_important_dates_to_fig(fig):
@@ -1050,7 +1057,6 @@ def load_data():
 
 def calculate_rsi(df):
     df = df.copy()
-    # Используем pandas-деление с защитой
     df['Конверсия_доля'] = df['Стримы'] / df['Старты']
     df['Конверсия_доля'] = df['Конверсия_доля'].fillna(0).replace([np.inf, -np.inf], 0)
     df['RSI'] = df['Стримы'] * (df['Конверсия_доля'] + 1) * (df['Старты'] ** 0.1)
