@@ -2149,49 +2149,48 @@ else:
         key="comparison_period"
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        ep1_short = st.selectbox("📌 Выпуск №1:", short_names_ordered, key="ep1")
-        ep1 = episode_names_ordered[ep1_short]
-        release_date1 = df_total[df_total['Выпуск'] == ep1]['Дата прослушивания'].min()
-    with col2:
-        ep2_short = st.selectbox("📌 Выпуск №2:", short_names_ordered, key="ep2")
-        ep2 = episode_names_ordered[ep2_short]
-        release_date2 = df_total[df_total['Выпуск'] == ep2]['Дата прослушивания'].min()
+        col1, col2 = st.columns(2)
+        with col1:
+            ep1_short = st.selectbox("📌 Выпуск №1:", short_names_ordered, key="ep1")
+            ep1 = episode_names_ordered[ep1_short]
+        with col2:
+            ep2_short = st.selectbox("📌 Выпуск №2:", short_names_ordered, key="ep2")
+            ep2 = episode_names_ordered[ep2_short]
 
     if ep1 == ep2:
         st.warning("⚠️ Выберите два разных выпуска для сравнения!")
     else:
         all_data = df_merged.copy()
 
-            # Получаем все данные по выпускам
-        data1_full = all_data[all_data['Выпуск'] == ep1].copy()
-        data2_full = all_data[all_data['Выпуск'] == ep2].copy()
+                    # Получаем все данные по выпускам
+        data1_full = df_merged[df_merged['Выпуск'] == ep1].copy()
+        data2_full = df_merged[df_merged['Выпуск'] == ep2].copy()
         
-        # Находим дату первого реального прослушивания (со стартами > 0)
-        first_real_date1 = data1_full[data1_full['Старты'] > 0]['Дата прослушивания'].min()
-        first_real_date2 = data2_full[data2_full['Старты'] > 0]['Дата прослушивания'].min()
+        # Находим дату первого реального прослушивания (где Старты > 0)
+        release_date1 = data1_full[data1_full['Старты'] > 0]['Дата прослушивания'].min()
+        release_date2 = data2_full[data2_full['Старты'] > 0]['Дата прослушивания'].min()
         
-        if pd.isna(first_real_date1):
-            first_real_date1 = release_date1
-        if pd.isna(first_real_date2):
-            first_real_date2 = release_date2
-        
+        # Если все старты нулевые — берем минимальную дату
+        if pd.isna(release_date1):
+            release_date1 = data1_full['Дата прослушивания'].min()
+        if pd.isna(release_date2):
+            release_date2 = data2_full['Дата прослушивания'].min()
+
         if period == "1 день":
-            data1 = data1_full[(data1_full['Дата прослушивания'] >= first_real_date1) & 
-                               (data1_full['Дата прослушивания'] <= first_real_date1 + pd.Timedelta(days=0))]
-            data2 = data2_full[(data2_full['Дата прослушивания'] >= first_real_date2) & 
-                               (data2_full['Дата прослушивания'] <= first_real_date2 + pd.Timedelta(days=0))]
+            data1 = data1_full[(data1_full['Дата прослушивания'] >= release_date1) & 
+                               (data1_full['Дата прослушивания'] <= release_date1 + pd.Timedelta(days=0))]
+            data2 = data2_full[(data2_full['Дата прослушивания'] >= release_date2) & 
+                               (data2_full['Дата прослушивания'] <= release_date2 + pd.Timedelta(days=0))]
         elif period == "1 неделя":
-            data1 = data1_full[(data1_full['Дата прослушивания'] >= first_real_date1) & 
-                               (data1_full['Дата прослушивания'] <= first_real_date1 + pd.Timedelta(days=6))]
-            data2 = data2_full[(data2_full['Дата прослушивания'] >= first_real_date2) & 
-                               (data2_full['Дата прослушивания'] <= first_real_date2 + pd.Timedelta(days=6))]
+            data1 = data1_full[(data1_full['Дата прослушивания'] >= release_date1) & 
+                               (data1_full['Дата прослушивания'] <= release_date1 + pd.Timedelta(days=6))]
+            data2 = data2_full[(data2_full['Дата прослушивания'] >= release_date2) & 
+                               (data2_full['Дата прослушивания'] <= release_date2 + pd.Timedelta(days=6))]
         elif period == "1 месяц":
-            data1 = data1_full[(data1_full['Дата прослушивания'] >= first_real_date1) & 
-                               (data1_full['Дата прослушивания'] <= first_real_date1 + pd.Timedelta(days=29))]
-            data2 = data2_full[(data2_full['Дата прослушивания'] >= first_real_date2) & 
-                               (data2_full['Дата прослушивания'] <= first_real_date2 + pd.Timedelta(days=29))]
+            data1 = data1_full[(data1_full['Дата прослушивания'] >= release_date1) & 
+                               (data1_full['Дата прослушивания'] <= release_date1 + pd.Timedelta(days=29))]
+            data2 = data2_full[(data2_full['Дата прослушивания'] >= release_date2) & 
+                               (data2_full['Дата прослушивания'] <= release_date2 + pd.Timedelta(days=29))]
         else:
             data1 = data1_full
             data2 = data2_full
