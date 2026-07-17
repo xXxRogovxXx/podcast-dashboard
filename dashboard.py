@@ -2149,13 +2149,13 @@ else:
         key="comparison_period"
     )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            ep1_short = st.selectbox("📌 Выпуск №1:", short_names_ordered, key="ep1")
-            ep1 = episode_names_ordered[ep1_short]
-        with col2:
-            ep2_short = st.selectbox("📌 Выпуск №2:", short_names_ordered, key="ep2")
-            ep2 = episode_names_ordered[ep2_short]
+    col1, col2 = st.columns(2)
+    with col1:
+        ep1_short = st.selectbox("📌 Выпуск №1:", short_names_ordered, key="ep1")
+        ep1 = episode_names_ordered[ep1_short]
+    with col2:
+        ep2_short = st.selectbox("📌 Выпуск №2:", short_names_ordered, key="ep2")
+        ep2 = episode_names_ordered[ep2_short]
 
     if ep1 == ep2:
         st.warning("⚠️ Выберите два разных выпуска для сравнения!")
