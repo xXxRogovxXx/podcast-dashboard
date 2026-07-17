@@ -1130,7 +1130,14 @@ def get_life_curve_for_period(episode_name, df_merged, period_days=None):
     episode_data = df_merged[df_merged['Выпуск'] == episode_name].copy()
     if episode_data.empty:
         return None
-    release_date = episode_data['Дата прослушивания'].min()
+    
+    # Ищем первую дату с реальными прослушиваниями
+    real_data = episode_data[episode_data['Старты'] > 0]
+    if not real_data.empty:
+        release_date = real_data['Дата прослушивания'].min()
+    else:
+        release_date = episode_data['Дата прослушивания'].min()
+    
     if period_days is not None:
         episode_data = episode_data[episode_data['Дата прослушивания'] <= release_date + pd.Timedelta(days=period_days - 1)]
     return get_life_curve(episode_data, release_date)
